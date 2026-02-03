@@ -1,5 +1,3 @@
-import React from 'react';
-
 /**
  * OnboardingSkeleton.tsx
  * 
@@ -14,37 +12,37 @@ export const OnboardingSkeleton = () => {
       <div className="fixed inset-0 pointer-events-none bg-[radial-gradient(circle_at_center,_transparent_0%,_rgba(0,0,0,0.4)_100%)]" />
 
       <main className="relative z-10 grid grid-cols-12 gap-8 max-w-7xl mx-auto min-h-screen items-center px-12">
-        
+
         {/* LEFT RAIL: Step Timeline (3 Columns) */}
         <div className="col-span-3 h-fit py-12">
           <div className="relative pl-8">
             {/* Vertical Line */}
             <div className="absolute left-[7px] top-0 bottom-0 w-[2px] bg-gradient-to-b from-[#58A6FF] to-transparent shadow-[0_0_8px_rgba(88,166,255,0.3)]" />
-            
+
             <div className="space-y-12">
-              <Step 
-                num="1" 
-                title="Initialize" 
-                desc="Local-only Vault" 
-                status="active" 
+              <Step
+                num="1"
+                title="Initialize"
+                desc="Local-only Vault"
+                status="active"
               />
-              <Step 
-                num="2" 
-                title="Permission" 
-                desc="Full Disk Access" 
-                status="pending" 
+              <Step
+                num="2"
+                title="Permission"
+                desc="Full Disk Access"
+                status="pending"
               />
-              <Step 
-                num="3" 
-                title="Storage" 
-                desc="Setting directory" 
-                status="pending" 
+              <Step
+                num="3"
+                title="Storage"
+                desc="Setting directory"
+                status="pending"
               />
-              <Step 
-                num="4" 
-                title="Browse" 
-                desc="Ready to explore" 
-                status="pending" 
+              <Step
+                num="4"
+                title="Browse"
+                desc="Ready to explore"
+                status="pending"
               />
             </div>
           </div>
@@ -68,17 +66,17 @@ export const OnboardingSkeleton = () => {
               Privacy Commitments
             </h3>
             <div className="space-y-4">
-              <TrustItem 
-                label="Local-only processing" 
-                desc="Messages never leave this machine." 
+              <TrustItem
+                label="Local-only processing"
+                desc="Messages never leave this machine."
               />
-              <TrustItem 
-                label="Stored on this Mac" 
-                desc="Saved to your secure ~/Analyzed folder." 
+              <TrustItem
+                label="Stored on this Mac"
+                desc="Saved to your secure ~/Analyzed folder."
               />
-              <TrustItem 
-                label="Read-only access" 
-                desc="Archiver cannot modify your data." 
+              <TrustItem
+                label="Read-only access"
+                desc="Archiver cannot modify your data."
               />
             </div>
           </div>
@@ -108,15 +106,15 @@ export const OnboardingSkeleton = () => {
                   <div className="w-1/3 border-r border-white/5 p-4 space-y-4">
                     <div className="h-4 w-3/4 bg-white/5 rounded" />
                     <div className="h-10 w-full bg-[#58A6FF]/10 rounded-lg border border-[#58A6FF]/20" />
-                    {[1,2,3,4].map(i => <div key={i} className="h-10 w-full bg-white/5 rounded-lg" />)}
+                    {[1, 2, 3, 4].map(i => <div key={i} className="h-10 w-full bg-white/5 rounded-lg" />)}
                   </div>
                   {/* Mock Content */}
                   <div className="flex-1 p-6 space-y-6">
-                     <div className="h-8 w-1/4 bg-white/5 rounded" />
-                     <div className="space-y-4">
-                        <div className="h-20 w-3/4 bg-[#58A6FF] rounded-r-xl rounded-tl-xl ml-auto opacity-80" />
-                        <div className="h-12 w-2/3 bg-white/10 rounded-l-xl rounded-tr-xl opacity-60" />
-                     </div>
+                    <div className="h-8 w-1/4 bg-white/5 rounded" />
+                    <div className="space-y-4">
+                      <div className="h-20 w-3/4 bg-[#58A6FF] rounded-r-xl rounded-tl-xl ml-auto opacity-80" />
+                      <div className="h-12 w-2/3 bg-white/10 rounded-l-xl rounded-tr-xl opacity-60" />
+                    </div>
                   </div>
                 </div>
               </div>
@@ -132,14 +130,13 @@ export const OnboardingSkeleton = () => {
   );
 };
 
-const Step = ({ num, title, desc, status }) => {
+const Step = ({ num, title, desc, status }: { num: string; title: string; desc: string; status: string }) => {
   const isActive = status === 'active';
-  const isDone = status === 'done';
-  
+
   return (
     <div className={`relative flex flex-col gap-1 transition-opacity duration-300 ${status === 'pending' ? 'opacity-40' : 'opacity-100'}`}>
       <div className={`absolute -left-[28px] top-[6px] w-[14px] h-[14px] rounded-full border-2 bg-[#0D1117] z-10 
-        ${isActive ? 'border-[#58A6FF] shadow-[0_0_12px_rgba(88,166,255,0.6)]' : 'border-[#30363D]'}`} 
+        ${isActive ? 'border-[#58A6FF] shadow-[0_0_12px_rgba(88,166,255,0.6)]' : 'border-[#30363D]'}`}
       />
       <span className={`text-sm font-bold ${isActive ? 'text-[#58A6FF]' : 'text-white'}`}>
         {num}. {title}
@@ -149,7 +146,7 @@ const Step = ({ num, title, desc, status }) => {
   );
 };
 
-const TrustItem = ({ label, desc }) => (
+const TrustItem = ({ label, desc }: { label: string; desc: string }) => (
   <div className="flex items-start gap-3">
     <div className="mt-1 text-[#238636]">
       <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">

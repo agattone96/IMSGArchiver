@@ -49,19 +49,6 @@
         }
       ]
     },
-    "win": {
-      "icon": "assets/icons/app-icon.ico",
-      "target": [
-        "nsis",
-        "zip"
-      ]
-    },
-    "linux": {
-      "target": [
-        "AppImage",
-        "deb"
-      ]
-    },
     "files": [
       "dist/electron/**/*",
       "frontend/dist/**/*"

@@ -1,10 +1,12 @@
-export { };
+export interface IElectronAPI {
+    send: (channel: string, data: any) => void;
+    on: (channel: string, func: (...args: any[]) => void) => void;
+    // Add IPC handler methods for type safety
+    invoke?: (channel: string, ...args: any[]) => Promise<any>;
+}
 
 declare global {
     interface Window {
-        electron: {
-            send: (channel: string, data: any) => void;
-            on: (channel: string, func: (...args: any[]) => void) => void;
-        };
+        electron: IElectronAPI;
     }
 }

@@ -1,21 +1,14 @@
-import { app, BrowserWindow, Menu, shell, ipcMain } from 'electron';
-import { spawn, ChildProcess } from 'child_process';
-import http from 'http';
+import { app, BrowserWindow, Menu, shell, dialog } from 'electron';
 import path from 'path';
-import net from 'net';
 import fs from 'fs';
+import { startPythonServer, killPythonServer } from './python';
+import { setupIPC } from './ipc';
 
 let mainWindow: BrowserWindow | null = null;
 let splashWindow: BrowserWindow | null = null;
-let backendProcess: ChildProcess | null = null;
-const BACKEND_PORT = 8000;
 const FRONTEND_PORT = 5173;
 
 app.setName('Archiver');
-
-if (process.platform === 'win32') {
-    app.setAppUserModelId('com.antigravity.imessagearchiver');
-}
 
 const gotTheLock = app.requestSingleInstanceLock();
 
@@ -44,20 +37,55 @@ function log(message: string, level = 'INFO') {
     console.log(logMessage.trim());
 }
 
-function getRuntimeIconPath(): string | undefined {
-    const base = app.isPackaged
-        ? process.resourcesPath
-        : path.join(__dirname, '../../assets/icons'); // Adjusted path for dev
+log('='.repeat(60));
+log('iMessage Archiver Launch Diagnostics');
+log(`App Version: ${app.getVersion()}`);
+log(`Electron Version: ${process.versions.electron}`);
+log(`Node Version: ${process.versions.node}`);
+log(`Platform: ${process.platform} ${process.arch}`);
+log(`Packaged: ${app.isPackaged}`);
+log(`Log file: ${LOG_FILE}`);
+log('='.repeat(60));
 
-    if (process.platform === 'win32') return path.join(base, 'icon.ico');
-    if (process.platform === 'linux') return path.join(base, '512x512.png');
-    if (process.platform === 'darwin') return path.join(base, 'app-icon.icns');
-    return undefined;
+// Global error handlers
+process.on('uncaughtException', (error) => {
+    log(`UNCAUGHT EXCEPTION: ${error.message}`, 'ERROR');
+    log(error.stack || '', 'ERROR');
+});
+
+function getRuntimeIconPath(): string {
+    const isDev = !app.isPackaged;
+    const base = isDev
+        ? path.join(__dirname, '../../assets/icons')
+        : path.join(process.resourcesPath, 'assets/icons');
+
+    const iconPath = path.join(base, 'app-icon.icns');
+    log(`Icon path: ${iconPath} (exists: ${fs.existsSync(iconPath)})`);
+    return iconPath;
+}
+
+function getSplashPath(): string {
+    const isDev = !app.isPackaged;
+    const splashPath = isDev
+        ? path.join(__dirname, '../../electron/splash.html')
+        : path.join(process.resourcesPath, 'electron/splash.html');
+
+    log(`Splash path: ${splashPath} (exists: ${fs.existsSync(splashPath)})`);
+    return splashPath;
 }
 
 function createSplashScreen() {
     log('Creating splash screen');
     const runtimeIcon = getRuntimeIconPath();
+    const splashPath = getSplashPath();
+
+    if (!fs.existsSync(splashPath)) {
+        log(`ERROR: Splash file not found at ${splashPath}`, 'ERROR');
+        dialog.showErrorBox('Resource Missing', `Splash screen not found at:\n${splashPath}`);
+        app.quit();
+        return;
+    }
+
     splashWindow = new BrowserWindow({
         width: 500,
         height: 350,
@@ -74,138 +102,30 @@ function createSplashScreen() {
         }
     });
 
-    splashWindow.loadFile(path.join(__dirname, '../splash.html'));
+    splashWindow.loadFile(splashPath);
+
+    splashWindow.webContents.on('did-fail-load', (event, errorCode, errorDescription) => {
+        log(`Splash failed to load: ${errorCode} - ${errorDescription}`, 'ERROR');
+        dialog.showErrorBox('Splash Load Failed', `Error: ${errorDescription}`);
+    });
+
     splashWindow.once('ready-to-show', () => {
+        log('Splash ready to show');
         if (splashWindow && !splashWindow.isDestroyed()) {
             splashWindow.show();
         }
     });
+
     splashWindow.on('closed', () => {
         splashWindow = null;
     });
 }
 
-function findPython(): string {
-    // Common paths
-    const pythonPaths = [
-        path.join(app.getPath('home'), 'Library/Application Support/Archiver/.venv/bin/python3'),
-        'python3',
-        '/usr/bin/python3',
-        '/usr/local/bin/python3',
-        '/opt/homebrew/bin/python3',
-        'python'
-    ];
-
-    for (const pythonCmd of pythonPaths) {
-        try {
-            const { execSync } = require('child_process');
-            const version = execSync(`${pythonCmd} --version 2>&1`, { encoding: 'utf-8' });
-            if (version.includes('Python 3')) {
-                log(`Found Python: ${pythonCmd} (${version.trim()})`);
-                return pythonCmd;
-            }
-        } catch {
-            // Continue
-        }
-    }
-
-    try {
-        const { execSync } = require('child_process');
-        const pythonPath = execSync('which python3', { encoding: 'utf-8' }).trim();
-        if (pythonPath) return pythonPath;
-    } catch { }
-
-    throw new Error('Python 3 not found');
-}
-
-function startBackend(): Promise<number> {
-    log('Starting Backend initialization');
-    if (splashWindow && !splashWindow.isDestroyed()) {
-        splashWindow.webContents.send('splash-progress', { message: 'Locating Python Environment...', percent: 10 });
-    }
-
-    return new Promise((resolve, reject) => {
-        let pythonPath;
-        try {
-            pythonPath = findPython();
-            if (splashWindow && !splashWindow.isDestroyed()) {
-                splashWindow.webContents.send('splash-progress', { message: 'Python Environment Found', percent: 25 });
-            }
-        } catch (error: any) {
-            log(`ERROR: ${error.message}`, 'ERROR');
-            reject(error);
-            return;
-        }
-
-        const isDev = !app.isPackaged;
-        // In dev: project_root/backend/src/app.py
-        // In prod: resources/backend/src/app.py
-        const projectRoot = isDev ? path.join(__dirname, '../../') : process.resourcesPath;
-        const scriptPath = path.join(projectRoot, 'backend', 'src', 'app.py');
-
-        if (!fs.existsSync(scriptPath)) {
-            // Try fallback for flattened structure if needed, or error
-            const error = `ERROR: app.py not found at ${scriptPath}`;
-            log(error, 'ERROR');
-            reject(new Error(error));
-            return;
-        }
-
-        if (splashWindow && !splashWindow.isDestroyed()) {
-            splashWindow.webContents.send('splash-progress', { message: 'Spawning Core Engine...', percent: 40 });
-        }
-
-        log(`Spawning Backend: ${pythonPath} ${scriptPath}`);
-
-        backendProcess = spawn(pythonPath, [scriptPath], {
-            cwd: projectRoot,
-            env: {
-                ...process.env,
-                PYTHONUNBUFFERED: '1',
-                PYTHONPATH: projectRoot
-            }
-        });
-
-        backendProcess.stdout?.on('data', (data) => log(`Backend: ${data}`));
-        backendProcess.stderr?.on('data', (data) => log(`Backend Error: ${data}`));
-        backendProcess.on('close', (code) => log(`Backend exited with code ${code}`));
-
-        let attempts = 0;
-        const checkInterval = setInterval(() => {
-            attempts++;
-            if (splashWindow && !splashWindow.isDestroyed()) {
-                const progress = Math.min(40 + (attempts * 2), 90);
-                splashWindow.webContents.send('splash-progress', { message: 'Initializing Database...', percent: progress });
-            }
-
-            const req = http.request({
-                host: '127.0.0.1',
-                port: BACKEND_PORT,
-                path: '/system/status',
-                method: 'GET'
-            }, (res) => {
-                if (res.statusCode === 200) {
-                    clearInterval(checkInterval);
-                    if (splashWindow && !splashWindow.isDestroyed()) {
-                        splashWindow.webContents.send('splash-progress', { message: 'Ready!', percent: 100 });
-                    }
-                    resolve(BACKEND_PORT);
-                }
-            });
-            req.on('error', () => { });
-            req.end();
-        }, 500);
-
-        setTimeout(() => {
-            clearInterval(checkInterval);
-            reject(new Error('Backend initialization timed out'));
-        }, 30000);
-    });
-}
-
 function createWindow() {
+    log('Creating main window');
     const runtimeIcon = getRuntimeIconPath();
     const isDev = !app.isPackaged;
+
     mainWindow = new BrowserWindow({
         width: 1400,
         height: 900,
@@ -214,7 +134,7 @@ function createWindow() {
         webPreferences: {
             nodeIntegration: false,
             contextIsolation: true,
-            preload: path.join(__dirname, '../preload/index.js') // Adjusted path for build structure
+            preload: path.join(__dirname, '../preload/index.js')
         },
         title: 'Archiver',
         show: false
@@ -224,7 +144,30 @@ function createWindow() {
         ? `http://localhost:${FRONTEND_PORT}`
         : `file://${path.join(__dirname, '../../frontend/dist/index.html')}`;
 
+    log(`Loading main window URL: ${loadUrl}`);
+
+    // In production, verify the file exists
+    if (!isDev) {
+        const indexPath = path.join(__dirname, '../../frontend/dist/index.html');
+        if (!fs.existsSync(indexPath)) {
+            log(`ERROR: index.html not found at ${indexPath}`, 'ERROR');
+            dialog.showErrorBox('Resource Missing', `Frontend index.html not found at:\n${indexPath}`);
+            app.quit();
+            return;
+        }
+    }
+
     mainWindow.loadURL(loadUrl);
+
+    mainWindow.webContents.on('did-fail-load', (event, errorCode, errorDescription) => {
+        log(`Main window failed to load: ${errorCode} - ${errorDescription}`, 'ERROR');
+        dialog.showErrorBox('Failed to Load', `The application failed to load:\n${errorDescription}\n\nCheck logs at:\n${LOG_FILE}`);
+    });
+
+    mainWindow.webContents.on('render-process-gone', (event, details) => {
+        log(`Render process gone: ${details.reason}`, 'ERROR');
+        dialog.showErrorBox('Render Process Crashed', `Reason: ${details.reason}\nExit code: ${details.exitCode}`);
+    });
 
     mainWindow.webContents.setWindowOpenHandler(({ url }) => {
         shell.openExternal(url);
@@ -232,30 +175,90 @@ function createWindow() {
     });
 
     mainWindow.once('ready-to-show', () => {
+        log('Main window ready-to-show');
         if (splashWindow && !splashWindow.isDestroyed()) {
             splashWindow.close();
         }
         mainWindow?.show();
+        log('App fully initialized');
+    });
+
+    if (isDev) {
+        mainWindow.webContents.openDevTools();
+    }
+
+    mainWindow.on('closed', () => {
+        log('Main window closed');
+        mainWindow = null;
     });
 }
 
 app.whenReady().then(async () => {
+    log('Electron app ready, starting initialization');
+
+    // macOS Menu
     if (process.platform === 'darwin') {
-        // Menu template...
-        // simplified for brevity in this step, can add back
+        const template: Electron.MenuItemConstructorOptions[] = [
+            {
+                label: 'Archiver',
+                submenu: [
+                    { role: 'about' },
+                    { type: 'separator' },
+                    { role: 'services' },
+                    { type: 'separator' },
+                    { role: 'hide' },
+                    { role: 'hideOthers' },
+                    { role: 'unhide' },
+                    { type: 'separator' },
+                    { role: 'quit' }
+                ]
+            },
+            { role: 'editMenu' },
+            { role: 'viewMenu' },
+            { role: 'windowMenu' }
+        ];
+        const menu = Menu.buildFromTemplate(template);
+        Menu.setApplicationMenu(menu);
+
+        // Set Dock Icon
+        const iconPath = getRuntimeIconPath();
+        if (fs.existsSync(iconPath)) {
+            app.dock.setIcon(iconPath);
+            log('Dock icon set successfully');
+        } else {
+            log(`Dock icon NOT found at ${iconPath}`, 'WARNING');
+        }
     }
 
     try {
+        // Setup IPC handlers
+        setupIPC();
+
+        // Show splash immediately
         createSplashScreen();
-        await startBackend();
+
+        // Start Backend in background
+        await startPythonServer(splashWindow);
+
+        // Create main window
         createWindow();
     } catch (error: any) {
-        log(`FATAL: ${error.message}`);
+        log(`FATAL ERROR: ${error.message}`, 'ERROR');
+        log(error.stack || '', 'ERROR');
+        dialog.showErrorBox('Fatal Error', `The application failed to start:\n${error.message}\n\nCheck logs at:\n${LOG_FILE}`);
+        if (splashWindow && !splashWindow.isDestroyed()) {
+            splashWindow.close();
+        }
         app.quit();
     }
 });
 
 app.on('window-all-closed', () => {
-    if (backendProcess) backendProcess.kill();
+    killPythonServer();
     app.quit();
+});
+
+app.on('before-quit', () => {
+    log('App quitting, cleaning up...');
+    killPythonServer();
 });
