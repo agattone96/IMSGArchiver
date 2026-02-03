@@ -1,0 +1,175 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Loading Archiver</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+            background: #05060b;
+            /* Match dashboard.py --bg0 */
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            height: 100vh;
+            overflow: hidden;
+            -webkit-app-region: drag;
+        }
+
+        .loader-container {
+            position: relative;
+            text-align: center;
+            color: rgba(255, 255, 255, 0.9);
+            padding: 40px;
+            background: rgba(18, 16, 28, 0.54);
+            /* --panel */
+            backdrop-filter: blur(18px);
+            -webkit-backdrop-filter: blur(18px);
+            border: 1px solid rgba(255, 255, 255, 0.12);
+            /* --stroke */
+            border-radius: 26px;
+            /* --radius */
+            box-shadow: 0 18px 62px rgba(0, 0, 0, 0.58);
+            /* --shadow */
+        }
+
+        .app-icon {
+            width: 120px;
+            height: 120px;
+            margin: 0 auto 30px;
+            border-radius: 28px;
+            overflow: hidden;
+            box-shadow: 0 0 16px rgba(255, 42, 168, 0.22);
+            /* --glow-soft */
+            animation: pulse 2.5s ease-in-out infinite;
+        }
+
+        .app-icon img {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+        }
+
+        @keyframes pulse {
+
+            0%,
+            100% {
+                transform: scale(1);
+                box-shadow: 0 0 16px rgba(255, 42, 168, 0.22);
+            }
+
+            50% {
+                transform: scale(1.05);
+                box-shadow: 0 0 24px rgba(255, 42, 168, 0.44);
+            }
+        }
+
+        h1 {
+            font-size: 28px;
+            font-weight: 700;
+            margin-bottom: 12px;
+            letter-spacing: -0.5px;
+            color: #ff2aa8;
+            /* --pink */
+            text-shadow: 0 0 12px rgba(255, 42, 168, 0.3);
+        }
+
+        .loading-text {
+            font-size: 14px;
+            opacity: 0.7;
+            margin-bottom: 24px;
+        }
+
+        .progress-bar {
+            width: 240px;
+            height: 4px;
+            background: rgba(255, 255, 255, 0.08);
+            border-radius: 10px;
+            margin: 0 auto;
+            overflow: hidden;
+        }
+
+        .progress-fill {
+            height: 100%;
+            background: linear-gradient(90deg, #ff2aa8, #7b5cff);
+            /* pink to violet */
+            border-radius: 10px;
+            width: 40%;
+            animation: loading 2s ease-in-out infinite;
+        }
+
+        @keyframes loading {
+            0% {
+                transform: translateX(-100%);
+            }
+
+            100% {
+                transform: translateX(250%);
+            }
+        }
+
+        .status {
+            margin-top: 20px;
+            font-size: 11px;
+            letter-spacing: 0.1em;
+            text-transform: uppercase;
+            color: #34f2ff;
+            /* --cyan */
+            opacity: 0.8;
+            font-weight: 600;
+        }
+    </style>
+</head>
+
+<body>
+    <div class="loader-container">
+        <div class="app-icon">
+            <img src="../assets/icons/app-icon.png" alt="Icon">
+        </div>
+        <h1>ARCHIVER</h1>
+        <p class="loading-text">Initializing Secure Environment</p>
+        <div class="progress-bar">
+            <div class="progress-fill"></div>
+        </div>
+        <p class="status" id="status">ENCRYPTING CONNECTION...</p>
+    </div>
+
+    <script>
+        const { ipcRenderer } = require('electron');
+
+        const statusEl = document.getElementById('status');
+        const progressFill = document.querySelector('.progress-fill');
+        const loadingText = document.querySelector('.loading-text');
+
+        // Remove infinite animation and set initial state
+        progressFill.style.animation = 'none';
+        progressFill.style.width = '2%';
+        progressFill.style.transition = 'width 0.3s ease-out';
+
+        ipcRenderer.on('splash-progress', (event, { message, percent }) => {
+            if (message) {
+                statusEl.textContent = message.toUpperCase();
+            }
+            if (percent !== undefined) {
+                progressFill.style.width = `${percent}%`;
+            }
+        });
+
+        // Fallback animation if no IPC received quickly
+        setTimeout(() => {
+            if (progressFill.style.width === '2%') {
+                progressFill.style.animation = 'loading 2s ease-in-out infinite';
+            }
+        }, 3000);
+    </script>
+</body>
+
+</html>

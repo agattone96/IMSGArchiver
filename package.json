@@ -1,0 +1,77 @@
+{
+  "name": "imessage-archiver",
+  "version": "1.1.0",
+  "description": "Professional iMessage Archiver Client",
+  "private": true,
+  "homepage": "https://github.com/antigravity/archiver",
+  "author": {
+    "name": "Antigravity",
+    "email": "support@antigravity.ai"
+  },
+  "main": "dist/electron/main/index.js",
+  "scripts": {
+    "dev": "concurrently \"npm run dev:ui\" \"npm run dev:electron\"",
+    "dev:ui": "cd frontend && npm run dev",
+    "dev:electron": "tsc -p electron -w",
+    "prebuild": "rm -rf dist && tsc -p electron && cd frontend && npm run build",
+    "start": "tsc -p electron && electron .",
+    "build": "npm run prebuild && electron-builder --mac",
+    "build-all": "npm run prebuild && electron-builder -mwl"
+  },
+  "build": {
+    "appId": "com.antigravity.imessagearchiver",
+    "productName": "Archiver",
+    "directories": {
+      "output": "release"
+    },
+    "mac": {
+      "category": "public.app-category.utilities",
+      "icon": "assets/icons/app-icon.icns",
+      "target": [
+        "dmg",
+        "zip"
+      ]
+    },
+    "dmg": {
+      "icon": "assets/icons/app-icon.icns",
+      "iconSize": 128,
+      "contents": [
+        {
+          "x": 180,
+          "y": 220,
+          "type": "file"
+        },
+        {
+          "x": 520,
+          "y": 220,
+          "type": "link",
+          "path": "/Applications"
+        }
+      ]
+    },
+    "files": [
+      "dist/electron/**/*",
+      "frontend/dist/**/*"
+    ],
+    "extraResources": [
+      {
+        "from": "backend",
+        "to": "backend"
+      },
+      {
+        "from": "electron/splash.html",
+        "to": "electron/splash.html"
+      },
+      {
+        "from": "assets",
+        "to": "assets"
+      }
+    ]
+  },
+  "devDependencies": {
+    "concurrently": "^8.2.2",
+    "electron": "^28.0.0",
+    "electron-builder": "^24.9.1",
+    "typescript": "^5.9.3"
+  }
+}

@@ -1,0 +1,28 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+    :root {
+        --bg0: #05060b;
+        --bg1: #0A0B14;
+        --panel: #131421;
+        --panel2: #1c1e2e;
+        --stroke: #2a2c40;
+        --text: #e2e4e9;
+        --muted: #84889c;
+        --pink: #FF2AA8;
+        --pink2: #D91D8C;
+        --violet: #8B5CF6;
+        --cyan: #06B6D4;
+        --blue: #3B82F6;
+        --green: #10B981;
+        --orange: #FB923C;
+    }
+}
+
+body {
+    background-color: var(--bg0);
+    color: var(--text);
+    font-family: 'Inter', system-ui, sans-serif;
+}
