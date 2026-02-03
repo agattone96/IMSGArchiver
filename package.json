@@ -1,34 +1,39 @@
 {
-  "name": "archiver",
+  "name": "imessage-archiver",
   "version": "1.1.0",
-  "description": "iMessage Archiver - Desktop Application",
+  "description": "Professional iMessage Archiver Client",
+  "private": true,
   "homepage": "https://github.com/antigravity/archiver",
   "author": {
     "name": "Antigravity",
     "email": "support@antigravity.ai"
   },
-  "main": "electron/main.js",
+  "main": "dist/electron/main/index.js",
   "scripts": {
-    "start": "electron .",
-    "build": "electron-builder --mac",
-    "build-all": "electron-builder -mwl"
+    "dev": "concurrently \"npm run dev:ui\" \"npm run dev:electron\"",
+    "dev:ui": "cd frontend && npm run dev",
+    "dev:electron": "tsc -p electron -w",
+    "prebuild": "rm -rf dist && tsc -p electron && cd frontend && npm run build",
+    "start": "tsc -p electron && electron .",
+    "build": "npm run prebuild && electron-builder --mac",
+    "build-all": "npm run prebuild && electron-builder -mwl"
   },
   "build": {
     "appId": "com.antigravity.imessagearchiver",
     "productName": "Archiver",
     "directories": {
-      "buildResources": "build"
+      "output": "release"
     },
     "mac": {
       "category": "public.app-category.utilities",
-      "icon": "build/icon.icns",
+      "icon": "assets/icons/app-icon.icns",
       "target": [
         "dmg",
         "zip"
       ]
     },
     "dmg": {
-      "icon": "build/ArchiverIcon.icns",
+      "icon": "assets/icons/app-icon.icns",
       "iconSize": 128,
       "contents": [
         {
@@ -42,86 +47,48 @@
           "type": "link",
           "path": "/Applications"
         }
-      ],
-      "window": {
-        "width": 700,
-        "height": 400
-      }
+      ]
     },
     "win": {
-      "icon": "build/icon.ico",
+      "icon": "assets/icons/app-icon.ico",
       "target": [
         "nsis",
         "zip"
       ]
     },
-    "nsis": {
-      "oneClick": false,
-      "perMachine": false,
-      "allowToChangeInstallationDirectory": true,
-      "installerIcon": "build/icon.ico",
-      "uninstallerIcon": "build/icon.ico",
-      "installerHeaderIcon": "build/icon.ico",
-      "shortcutName": "Archiver"
-    },
     "linux": {
-      "category": "Utility",
-      "icon": "build/icons",
-      "desktop": {
-        "Name": "Archiver",
-        "Comment": "iMessage Archiver",
-        "Icon": "archiver"
-      },
       "target": [
         "AppImage",
-        "deb",
-        "rpm"
+        "deb"
       ]
     },
     "files": [
-      "electron/**/*"
+      "dist/electron/**/*",
+      "frontend/dist/**/*"
     ],
     "extraResources": [
       {
-        "from": "build/icon.icns",
-        "to": "icon.icns"
+        "from": "backend/src",
+        "to": "backend/src"
       },
       {
-        "from": "build/icon.ico",
-        "to": "icon.ico"
+        "from": "backend/requirements.txt",
+        "to": "backend/requirements.txt"
       },
       {
-        "from": "build/icon.icns",
-        "to": "icon.icns"
+        "from": "electron/splash.html",
+        "to": "electron/splash.html"
       },
       {
-        "from": "build/icons",
-        "to": "icons"
-      },
-      {
-        "from": "dashboard.py",
-        "to": "dashboard.py"
-      },
-      {
-        "from": "app_icon.png",
-        "to": "app_icon.png"
-      },
-      {
-        "from": "backend",
-        "to": "backend"
-      },
-      {
-        "from": "bin",
-        "to": "bin"
-      },
-      {
-        "from": "requirements.txt",
-        "to": "requirements.txt"
+        "from": "assets",
+        "to": "assets"
       }
     ]
   },
   "devDependencies": {
+    "concurrently": "^8.2.2",
     "electron": "^28.0.0",
-    "electron-builder": "^24.9.1"
+    "electron-builder": "^24.9.1",
+    "typescript": "^5.9.3"
   }
 }

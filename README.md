@@ -1,46 +1,82 @@
 # iMessage Archiver
 
-A professional macOS application to archive, browse, and analyze your iMessage history with a modern desktop experience.
+A professional macOS application to archive, browse, and analyze your iMessage history with a modern, native-feeling desktop experience.
 
 ![App Icon](app_icon.png)
 
-## Features
-- **Modern Desktop UI**: Powered by Electron for a sleek, responsive experience.
-- **Unified Dashboard**: Single-page Command Center for browsing all threads.
-- **Search & Filter**: Find specific messages or contacts instantly.
-- **Full History Export**: High-fidelity exports including text, reactions, and attachments.
+## ✨ Features
+- **Modern User Interface**: Built with React, Tailwind CSS, and Framer Motion for smooth animations and a premium feel.
+- **Glassmorphism Design**: Native macOS aesthetics with frosted glass backgrounds and vibrant accents.
+- **High-Performance Messaging**: Virtualized message list handling thousands of messages efficiently.
+- **Unified specific Dashboard**: Command Center for stats, trends, and quick actions.
+- **Search & Archive**: Instantly find threads and archive them with a single click.
 - **Intelligent Processing**:
     - **OCR**: Extract text from images automatically.
     - **Transcription**: Convert audio messages to text.
 - **Privacy First**: All processing happens locally on your machine. No data ever leaves your device.
 
-## Prerequisites
-- **macOS**: Compatible with modern macOS versions.
+## 🛠️ Tech Stack
+- **Frontend**: React, TypeScript, Vite, Tailwind CSS v4, Framer Motion
+- **Backend**: FastAPI (Python), Uvicorn
+- **Container**: Electron
+- **Database**: Direct SQLite integration with macOS `chat.db`
+
+## 🚀 Getting Started
+
+### Prerequisites
+- **macOS**: Required for access to iMessage data.
 - **Full Disk Access**: The application requires Full Disk Access to read your local `chat.db`.
     - Go to `System Settings > Privacy & Security > Full Disk Access`.
     - Add and enable **Archiver**.
 
-## Installation & Setup
+### Development Setup
 
-### For Users
-1. Download the latest `Archiver.dmg` from the Releases page.
-2. Drag **Archiver** to your Applications folder.
-3. Launch and grant the necessary permissions.
-
-### For Developers
-1. Clone the repository.
-2. Ensure you have Node.js and Python 3 installed.
-3. Build the application:
+1. **Install Dependencies**
    ```bash
-   ./build_electron.sh
+   # Install Frontend dependencies
+   cd frontend
+   npm install
+
+   # Install Backend dependencies
+   cd ..
+   pip install -r requirements.txt
    ```
-4. Run in development mode:
+
+2. **Run in Development Mode**
+   You need two terminal windows:
+
+   **Terminal 1 (Frontend Dev Server)**:
    ```bash
+   cd frontend
+   npm run dev
+   ```
+
+   **Terminal 2 (Electron Host)**:
+   ```bash
+   # From root directory
    npm start
    ```
 
-## Output Structure
-Exports are organized in `~/Downloads/iMessage_Exports/`:
+### Production Build
+
+To create a distributable `.dmg` or `.app`:
+
+1. **Build Frontend**:
+   ```bash
+   cd frontend
+   npm run build
+   ```
+   This generates optimized assets in `frontend/dist`.
+
+2. **Package Electron App**:
+   ```bash
+   # From root directory (ensure you have built the frontend first)
+   npm run build-all
+   ```
+   The artifacts will be available in the `dist` folder.
+
+## 📂 Output Structure
+Exports are automatically organized in `~/Downloads/iMessage_Exports/`:
 ```
 <Contact Name>/
 ├── chat_export.csv       # Categorized Message History
@@ -51,10 +87,5 @@ Exports are organized in `~/Downloads/iMessage_Exports/`:
     └── OCR/              # Image Text Analysis
 ```
 
-## Architecture
-- **Frontend**: Electron + Streamlit (embedded).
-- **Engine**: Python-based archival core.
-- **Database**: Direct integration with macOS `chat.db` and `AddressBook`.
-
-## License
+## 📄 License
 MIT License - see [LICENSE](LICENSE) for details.
