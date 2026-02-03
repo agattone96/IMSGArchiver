@@ -246,3 +246,39 @@ def archive_chat_profiled(*args, **kwargs):
     
     print(f"Profile saved to {profile_log}")
     return result
+
+def get_global_stats():
+    """Calculates global statistics from the database."""
+    conn = get_db_connection()
+    cur = conn.cursor()
+    
+    # Total messages
+    cur.execute("SELECT COUNT(*) FROM message")
+    total_messages = cur.fetchone()[0]
+    
+    # Total chats
+    cur.execute("SELECT COUNT(*) FROM chat")
+    total_chats = cur.fetchone()[0]
+    
+    # Top contact
+    sql_top = """
+    SELECT h.id, COUNT(*) as cnt 
+    FROM message m 
+    JOIN handle h ON m.handle_id = h.ROWID 
+    WHERE m.is_from_me = 0 
+    GROUP BY h.id 
+    ORDER BY cnt DESC 
+    LIMIT 1
+    """
+    row = cur.execute(sql_top).fetchone()
+    top_contact = row[0] if row else "N/A"
+    top_count = row[1] if row else 0
+    
+    conn.close()
+    
+    return {
+        "total_messages": total_messages,
+        "total_chats": total_chats,
+        "top_contact_handle": top_contact,
+        "top_contact_count": top_count
+    }

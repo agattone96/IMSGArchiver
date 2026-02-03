@@ -1,4 +1,4 @@
-# --- Python ---
+# --- 🐍 Python Standard ---
 __pycache__/
 *.py[cod]
 *$py.class
@@ -22,7 +22,7 @@ share/python-wheels/
 *.egg
 MANIFEST
 
-# --- Environments ---
+# --- 🧪 Virtual Environments ---
 .env
 .venv
 env/
@@ -30,8 +30,29 @@ venv/
 ENV/
 env.bak/
 venv.bak/
+pythonenv*
 
-# --- macOS ---
+# --- 📦 Node.js / JavaScript ---
+node_modules/
+jspm_packages/
+.npm
+.eslintcache
+.stylelintcache
+.node_repl_history
+
+# --- 📄 Logs & Databases ---
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+lerna-debug.log*
+*.sqlite
+*.db
+*.db-shm
+*.db-wal
+
+# --- 🍎 macOS System ---
 .DS_Store
 .AppleDouble
 .LSOverride
@@ -41,26 +62,59 @@ Icon?
 .Trashes
 *.icloud
 
-# --- Node / Electron ---
-node_modules/
-npm-debug.log*
-yarn-debug.log*
-yarn-error.log*
-.pnpm-debug.log*
-
-# --- Project Specific ---
-exports/
-metadata.json
-*.log
-*.db
-*.sqlite
-bin/ocr_helper
-bin/transcribe_helper
-.agent/
-.gemini/
-
-# --- IDEs ---
-.vscode/
+# --- 🖥️ IDE & Editors ---
 .idea/
+.vscode/
 *.swp
 *.swo
+*.swn
+.project
+.classpath
+.settings/
+*.sublime-workspace
+*.sublime-project
+
+# --- ⚡ Electron-Builder ---
+dist/
+release/
+mac/
+mac-arm64/
+win-unpacked/
+linux-unpacked/
+
+# --- 🎨 Frontend ---
+frontend/dist/
+frontend/.vite/
+frontend/coverage/
+frontend/node_modules/
+
+# --- 🧊 Archiver Project Specific ---
+# Data exports and local processing
+exports/
+output/
+data/
+*.abcddb
+*.bplist
+chat.db*
+
+# Sensitive config
+metadata.json
+config.json
+secrets.json
+
+# Binaries (unless explicitly tracked)
+bin/ocr_helper
+bin/transcribe_helper
+bin/audio-transcriber-* // Pattern match for downloaded binaries
+
+# Agent working directories
+.agent/
+.gemini/
+brain/
+artifacts/
+
+# Temporary files from scripts
+.tmp/
+tmp/
+temp/
+*.spec
