@@ -52,10 +52,16 @@ A professional, high-performance desktop application for archiving, searching, a
 
 ## Building for Production
 
-To create a distributable `.dmg` or `.app` for macOS:
+To compile without packaging:
 
 ```bash
 npm run build
+```
+
+To create distributables:
+
+```bash
+npm run dist
 ```
 
 This will:
@@ -63,6 +69,19 @@ This will:
 2. Build the React frontend.
 3. Package the application using `electron-builder`.
 4. Output the result to the `release/` directory.
+
+macOS packaging targets:
+
+```bash
+npm run dist:mac
+npm run dist:unsigned
+npm run dist:signed
+npm run dist:notarized
+```
+
+Signing / notarization environment variables:
+- `CSC_NAME` or `CSC_LINK` + `CSC_KEY_PASSWORD` (Developer ID Application identity)
+- `APPLE_ID`, `APPLE_APP_SPECIFIC_PASSWORD`, `APPLE_TEAM_ID` (notarization)
 
 ## Project Structure
 

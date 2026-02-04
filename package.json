@@ -17,10 +17,16 @@
     "tsc:frontend": "npx tsc -p frontend/tsconfig.json --noEmit",
     "tsc": "npm run tsc:electron && npm run tsc:frontend",
     "build:backend": "bash scripts/build_backend_binary.sh",
-    "prebuild": "npm run build:backend && rm -rf dist && tsc -p electron && cd frontend && npm run build",
+    "build:electron": "tsc -p electron",
+    "build:frontend": "cd frontend && npm run build",
+    "build": "npm run build:backend && npm run build:electron && npm run build:frontend",
     "start": "tsc -p electron && electron .",
-    "build": "npm run prebuild && electron-builder --mac",
-    "build-all": "npm run prebuild && electron-builder -mwl"
+    "dist": "npm run build && electron-builder -mwl",
+    "dist:mac": "npm run build && electron-builder --mac",
+    "dist:unsigned": "CSC_IDENTITY_AUTO_DISCOVERY=false npm run dist:mac",
+    "dist:signed": "CSC_IDENTITY_AUTO_DISCOVERY=true npm run dist:mac",
+    "dist:notarized": "node -e \"const req=['APPLE_ID','APPLE_APP_SPECIFIC_PASSWORD','APPLE_TEAM_ID'];const missing=req.filter(k=>!process.env[k]);if(missing.length){console.error('Missing env vars: '+missing.join(', '));process.exit(1);}\" && CSC_IDENTITY_AUTO_DISCOVERY=true npm run dist:mac",
+    "build-all": "npm run dist"
   },
   "build": {
     "appId": "com.antigravity.imessagearchiver",
