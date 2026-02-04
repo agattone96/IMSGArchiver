@@ -73,6 +73,10 @@ class ArchiveRequest(BaseModel):
 def get_status():
     return {"status": "ok", "version": "1.0.0", "storage": redact_path(OUT_DIR)}
 
+@app.get("/health")
+def health():
+    return {"status": "ok"}
+
 @app.get("/stats/global")
 def get_global_stats():
     try:

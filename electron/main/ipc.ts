@@ -1,4 +1,4 @@
-import { ipcMain } from 'electron';
+import { ipcMain, shell } from 'electron';
 
 /**
  * Setup IPC handlers for communication between renderer (React) and main process.
@@ -39,6 +39,14 @@ export function setupIPC() {
             console.error('IPC Error:', error);
             throw error;
         }
+    });
+
+    ipcMain.handle('open-full-disk-access', async () => {
+        if (process.platform !== 'darwin') return false;
+        await shell.openExternal(
+            'x-apple.systempreferences:com.apple.preference.security?Privacy_AllFiles'
+        );
+        return true;
     });
 
     // Complete app cleanup: export logs, zip them, wipe everything

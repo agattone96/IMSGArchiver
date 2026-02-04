@@ -24,6 +24,9 @@
         margin: 0 0 18px 0;
         color: #b1b4c3;
       }
+      p strong {
+        color: #ffffff;
+      }
       .buttons {
         display: flex;
         justify-content: flex-end;
@@ -46,16 +49,25 @@
       button:hover {
         filter: brightness(1.08);
       }
+      .error {
+        display: none;
+        margin-top: 12px;
+        color: #ff7a8a;
+        font-size: 12px;
+      }
     </style>
   </head>
   <body>
     <div class="wrap">
       <h1>Move to Applications</h1>
-      <p>Running from Downloads can break updates and permissions.</p>
+      <p><strong>Archiver must be installed in your Applications folder.</strong></p>
+      <p>Running from a disk image or Downloads can break permissions (including access to Messages data) and updates.</p>
       <div class="buttons">
-        <button id="run">Run Anyway</button>
-        <button id="quit">Quit</button>
         <button id="move" class="primary">Move to Applications</button>
+        <button id="quit">Quit</button>
+      </div>
+      <div id="error" class="error">
+        Couldn’t move Archiver to Applications. Please drag Archiver.app to Applications manually, then open it from Applications.
       </div>
     </div>
     <script>
@@ -66,8 +78,9 @@
       document.getElementById('quit').addEventListener('click', () => {
         ipcRenderer.send('move-to-applications-choice', 'quit');
       });
-      document.getElementById('run').addEventListener('click', () => {
-        ipcRenderer.send('move-to-applications-choice', 'run');
+      ipcRenderer.on('move-to-applications-failed', () => {
+        const el = document.getElementById('error');
+        if (el) el.style.display = 'block';
       });
     </script>
   </body>

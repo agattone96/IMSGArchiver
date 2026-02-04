@@ -139,11 +139,16 @@
             margin-top: 16px;
             padding: 12px;
             border-radius: 10px;
-            background: rgba(255, 0, 0, 0.08);
-            border: 1px solid rgba(255, 0, 0, 0.2);
-            color: #ffb3b3;
+            background: rgba(52, 242, 255, 0.08);
+            border: 1px solid rgba(52, 242, 255, 0.2);
+            color: #d6f7ff;
             font-size: 12px;
             display: none;
+        }
+        .error-detail {
+            color: #c7d0de;
+            margin-top: 6px;
+            white-space: pre-wrap;
         }
 
         .error-actions {
@@ -184,23 +189,23 @@
         </div>
         <div class="error" id="error">
             <div id="error-title">Initialization failed</div>
-            <div id="error-detail" style="margin-top:6px;white-space:pre-wrap;"></div>
+            <div id="error-detail" class="error-detail"></div>
             <div class="error-actions">
-                <button class="btn" id="copy">Copy diagnostics</button>
+                <button class="btn" id="open-fda">Open Full Disk Access Settings</button>
                 <button class="btn" id="quit">Quit</button>
             </div>
         </div>
     </div>
 
     <script>
-        const { ipcRenderer, clipboard } = require('electron');
+        const { ipcRenderer } = require('electron');
 
         const progressFill = document.querySelector('.progress-fill');
         const stages = Array.from(document.querySelectorAll('.stage'));
         const errorBox = document.getElementById('error');
         const errorTitle = document.getElementById('error-title');
         const errorDetail = document.getElementById('error-detail');
-        const copyBtn = document.getElementById('copy');
+        const openFdaBtn = document.getElementById('open-fda');
         const quitBtn = document.getElementById('quit');
 
         const stageOrder = ['Preparing folders', 'Starting backend', 'Checking readiness', 'Finalizing'];
@@ -217,8 +222,22 @@
 
         ipcRenderer.on('splash-progress', (event, payload) => {
             if (payload?.status === 'error') {
-                errorTitle.textContent = payload.error || 'Initialization failed';
-                errorDetail.textContent = payload.detail || '';
+                const detail = payload.detail || '';
+                const isPermissionHint =
+                    detail.includes('Backend did not become ready in time') ||
+                    detail.toLowerCase().includes('permission denied') ||
+                    detail.toLowerCase().includes('full disk access') ||
+                    detail.toLowerCase().includes('messages database');
+
+                if (isPermissionHint) {
+                    errorTitle.textContent = 'Archiver needs permission to continue';
+                    errorDetail.textContent =
+                        "macOS hasn't allowed access to your Messages data yet. " +
+                        "Open System Settings → Privacy & Security → Full Disk Access, enable Archiver, then relaunch.";
+                } else {
+                    errorTitle.textContent = payload.error || 'Initialization failed';
+                    errorDetail.textContent = detail;
+                }
                 errorBox.style.display = 'block';
                 return;
             }
@@ -227,9 +246,12 @@
             }
         });
 
-        copyBtn?.addEventListener('click', () => {
-            const text = `${errorTitle.textContent}\n${errorDetail.textContent}`;
-            clipboard.writeText(text);
+        openFdaBtn?.addEventListener('click', async () => {
+            try {
+                await ipcRenderer.invoke('open-full-disk-access');
+            } catch {
+                // ignore
+            }
         });
 
         quitBtn?.addEventListener('click', () => {

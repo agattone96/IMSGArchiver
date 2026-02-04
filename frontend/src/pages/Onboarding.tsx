@@ -7,7 +7,7 @@ const HAS_ONBOARDED_KEY = 'archiver_has_onboarded';
 const THEME_KEY = 'archiver_theme';
 const UPDATES_KEY = 'archiver_updates';
 
-type Step = 'welcome' | 'privacy' | 'defaults';
+type Step = 'welcome' | 'permissions' | 'privacy' | 'defaults';
 
 type OnboardingProps = {
     onComplete: () => void;
@@ -29,8 +29,9 @@ export function Onboarding({ onComplete }: OnboardingProps) {
             });
     }, []);
 
-    const totalSteps = 3;
-    const stepIndex = step === 'welcome' ? 1 : step === 'privacy' ? 2 : 3;
+    const totalSteps = 4;
+    const stepIndex =
+        step === 'welcome' ? 1 : step === 'permissions' ? 2 : step === 'privacy' ? 3 : 4;
 
     const persistFlag = () => {
         try {
@@ -53,14 +54,27 @@ export function Onboarding({ onComplete }: OnboardingProps) {
     };
 
     const handleContinue = () => {
-        if (step === 'welcome') setStep('privacy');
+        if (step === 'welcome') setStep('permissions');
+        else if (step === 'permissions') setStep('privacy');
         else if (step === 'privacy') setStep('defaults');
         else finish();
     };
 
     const handleBack = () => {
-        if (step === 'privacy') setStep('welcome');
+        if (step === 'permissions') setStep('welcome');
+        if (step === 'privacy') setStep('permissions');
         if (step === 'defaults') setStep('privacy');
+    };
+
+    const openFullDiskAccess = async () => {
+        const electron = (window as any)?.electron;
+        if (electron?.invoke) {
+            try {
+                await electron.invoke('open-full-disk-access');
+            } catch {
+                // Ignore failures; user can open manually
+            }
+        }
     };
 
     const handleSkip = () => {
@@ -92,6 +106,32 @@ export function Onboarding({ onComplete }: OnboardingProps) {
                             <h1 className="text-3xl font-bold text-white">Welcome to Archiver</h1>
                             <p className="text-muted text-base">
                                 Archive and explore your iMessage history locally, fast, and private.
+                            </p>
+                        </div>
+                    )}
+
+                    {step === 'permissions' && (
+                        <div className="space-y-4">
+                            <h1 className="text-3xl font-bold text-white">Allow Full Disk Access</h1>
+                            <p className="text-muted text-base">
+                                Archiver needs <strong className="text-white">Full Disk Access</strong> to read your local Messages database.
+                            </p>
+                            <div className="bg-bg1/60 border border-stroke rounded-xl p-4 space-y-2">
+                                <div className="text-xs uppercase tracking-wide text-muted">Steps</div>
+                                <ol className="list-decimal list-inside text-sm text-muted space-y-1">
+                                    <li>Open Full Disk Access settings</li>
+                                    <li>Enable Archiver</li>
+                                    <li>Quit and re-open Archiver</li>
+                                </ol>
+                                <button
+                                    onClick={openFullDiskAccess}
+                                    className="mt-3 px-4 py-2 rounded-lg bg-white/10 border border-white/20 text-white text-sm font-semibold hover:brightness-110 transition-all"
+                                >
+                                    Open Full Disk Access Settings
+                                </button>
+                            </div>
+                            <p className="text-xs text-muted">
+                                If you skip this, imports may fail until access is granted.
                             </p>
                         </div>
                     )}

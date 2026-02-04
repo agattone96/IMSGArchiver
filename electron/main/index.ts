@@ -62,7 +62,7 @@ async function waitForBackendReady(timeoutMs = 15000) {
         try {
             const controller = new AbortController();
             const timer = setTimeout(() => controller.abort(), 2000);
-            const res = await fetch('http://127.0.0.1:8000/system/status', { signal: controller.signal });
+            const res = await fetch('http://127.0.0.1:8000/health', { signal: controller.signal });
             clearTimeout(timer);
             if (res.ok) return true;
         } catch {
@@ -124,11 +124,12 @@ function createMoveToApplicationsWindow() {
     const iconPath = getRuntimeIconPath();
     const win = new BrowserWindow({
         width: 520,
-        height: 260,
+        height: 300,
         resizable: false,
         minimizable: false,
         maximizable: false,
         fullscreenable: false,
+        closable: false,
         alwaysOnTop: true,
         show: false,
         modal: true,
@@ -147,6 +148,10 @@ function createMoveToApplicationsWindow() {
             : path.join(__dirname, '../move-to-applications.html')
     );
 
+    win.on('close', (event) => {
+        event.preventDefault();
+    });
+
     win.once('ready-to-show', () => {
         win.show();
         win.focus();
@@ -155,54 +160,59 @@ function createMoveToApplicationsWindow() {
     return win;
 }
 
-async function promptMoveToApplications() {
-    if (!shouldPromptMoveToApplications()) return 'run';
+function promptMoveToApplications() {
+    if (!shouldPromptMoveToApplications()) return false;
     movePromptShown = true;
-    return new Promise<'move' | 'quit' | 'run'>((resolve) => {
-        const win = createMoveToApplicationsWindow();
-        let resolved = false;
-        const finish = (choice: 'move' | 'quit' | 'run') => {
-            if (resolved) return;
-            resolved = true;
-            if (!win.isDestroyed()) win.close();
-            resolve(choice);
-        };
+    const win = createMoveToApplicationsWindow();
+    let moveInProgress = false;
 
-        const handler = (_event: any, choice: 'move' | 'quit' | 'run') => {
-            finish(choice);
-        };
+    const showMoveFailed = () => {
+        if (win.isDestroyed()) return;
+        if (win.webContents.isLoading()) {
+            win.webContents.once('did-finish-load', () => {
+                if (!win.isDestroyed()) win.webContents.send('move-to-applications-failed');
+            });
+            return;
+        }
+        win.webContents.send('move-to-applications-failed');
+    };
 
-        ipcMain.once('move-to-applications-choice', handler);
-
-        win.on('closed', () => {
-            finish('quit');
-        });
+    ipcMain.removeAllListeners('move-to-applications-choice');
+    ipcMain.on('move-to-applications-choice', async (_event: any, choice: 'move' | 'quit') => {
+        if (choice === 'quit') {
+            app.exit(0);
+            return;
+        }
+        if (choice === 'move') {
+            if (moveInProgress) return;
+            moveInProgress = true;
+            try {
+                const moved = app.moveToApplicationsFolder({
+                    conflictHandler: (conflictType) => {
+                        if (conflictType === 'exists') return true;
+                        return true;
+                    }
+                });
+                if (moved) {
+                    app.relaunch();
+                    app.exit(0);
+                    return;
+                }
+            } catch (e) {
+                log(`Move to Applications failed: ${e}`, 'ERROR');
+            } finally {
+                moveInProgress = false;
+            }
+            showMoveFailed();
+        }
     });
+
+    return true;
 }
 
 async function handleMoveToApplicationsFlow() {
-    const choice = await promptMoveToApplications();
-    if (choice === 'quit') {
-        app.quit();
-        return false;
-    }
-    if (choice === 'move') {
-        try {
-            const moved = app.moveToApplicationsFolder({
-                conflictHandler: (conflictType) => {
-                    if (conflictType === 'exists') return true;
-                    return true;
-                }
-            });
-            if (moved) {
-                app.relaunch();
-                app.exit(0);
-                return false;
-            }
-        } catch (e) {
-            log(`Move to Applications failed: ${e}`, 'ERROR');
-        }
-    }
+    const blocked = promptMoveToApplications();
+    if (blocked) return false;
     return true;
 }
 
@@ -234,11 +244,24 @@ const gotTheLock = app.requestSingleInstanceLock();
 if (!gotTheLock) {
     app.quit();
 } else {
-    app.on('second-instance', (_event, argv, workingDirectory) => {
-        if (mainWindow) {
-            if (mainWindow.isMinimized()) mainWindow.restore();
-            mainWindow.focus();
-        } else {
+app.on('second-instance', (_event, argv, workingDirectory) => {
+        const hasMainWindow = mainWindow && !mainWindow.isDestroyed();
+        const hasSplash = splashWindow && !splashWindow.isDestroyed();
+
+        if (hasSplash && !hasMainWindow) {
+            if (splashWindow!.isMinimized()) splashWindow!.restore();
+            splashWindow!.show();
+            splashWindow!.focus();
+            return;
+        }
+
+        if (hasMainWindow) {
+            if (mainWindow!.isMinimized()) mainWindow!.restore();
+            mainWindow!.focus();
+            return;
+        }
+
+        if (!hasSplash) {
             app.whenReady().then(() => createWindow());
         }
         const payload = parseSecondInstancePayload(argv, workingDirectory);

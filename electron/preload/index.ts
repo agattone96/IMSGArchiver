@@ -16,7 +16,7 @@ contextBridge.exposeInMainWorld('electron', {
         }
     },
     invoke: async (channel: string, ...args: any[]) => {
-        let validChannels = ['complete-cleanup'];
+        let validChannels = ['complete-cleanup', 'open-full-disk-access'];
         if (validChannels.includes(channel)) {
             return await ipcRenderer.invoke(channel, ...args);
         }
