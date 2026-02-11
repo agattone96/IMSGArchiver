@@ -43,19 +43,48 @@ curl http://127.0.0.1:8000/health
 
 ---
 
-## API endpoints
+## API endpoints (single source of truth)
 
-| Method | Endpoint | Purpose |
+To keep docs synchronized with FastAPI routes, do **not** maintain a manual endpoint table.
+
+Use one of these runtime sources instead:
+
+- OpenAPI docs: `http://127.0.0.1:8000/docs`
+- OpenAPI JSON: `http://127.0.0.1:8000/openapi.json`
+
+Optional route-list command (reads directly from `app.routes`):
+
+```bash
+python3 - <<'PY'
+from backend.src.app import app
+for route in sorted(app.routes, key=lambda r: getattr(r, 'path', '')):
+    methods = ','.join(sorted(m for m in (route.methods or []) if m not in {'HEAD', 'OPTIONS'}))
+    if methods and getattr(route, 'path', None):
+        print(f"{methods:10} {route.path}")
+PY
+```
+
+> This command intentionally derives endpoint data from the running code rather than duplicating it in markdown.
+
+---
+
+## Environment variables (single source of truth)
+
+Environment variables are defined in `src/config.py`. Keep this list aligned to that file.
+
+| Variable | Default | Purpose |
 |---|---|---|
-| GET | `/health` | Liveness probe |
-| GET | `/system/status` | API + storage status |
-| GET | `/stats/global` | Global message statistics |
-| GET | `/chats/recent` | Recent chat list |
-| GET | `/chats/{guid}/messages` | Messages for a specific chat |
-| POST | `/chats/{guid}/archive` | Export/archive a chat |
-| POST | `/onboarding/check-access` | Verify Messages DB access |
-| GET | `/onboarding/status` | Read onboarding completion state |
-| POST | `/onboarding/complete` | Mark onboarding as complete |
+| `SCRIPT_DIR` | `os.getcwd()` (or exported value) | Working directory used to resolve metadata/bin paths |
+| `TMP_DB` | empty | Override temporary `chat.db` copy path |
+| `OUT_DIR` | `~/Analyzed` | Destination directory for archived outputs |
+| `TMP_CONTACTS_DIR` | empty | Optional override for temporary contacts directory |
+| `METADATA_FILE` | `${SCRIPT_DIR}/metadata.json` | Metadata persistence file path |
+| `OCR_BIN` | `${SCRIPT_DIR}/bin/ocr_helper` | OCR helper binary path |
+| `TRANSCRIBE_BIN` | `${SCRIPT_DIR}/bin/transcribe_helper` | Transcription helper binary path |
+
+Related constant in application logic:
+
+- `TIMESTAMP_FILENAME` can be set to `1` to append timestamps to exported filenames.
 
 ---
 

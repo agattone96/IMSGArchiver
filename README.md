@@ -126,12 +126,11 @@ For signed/notarized macOS builds, configure:
 
 ## ⚙️ Backend environment configuration
 
-The backend supports these environment variables:
+To avoid documentation drift, backend runtime environment variables are maintained in **one place**:
 
-- `OUT_DIR` — output directory for archived chats (default: `~/Analyzed`)
-- `TIMESTAMP_FILENAME` — set to `1` to append a timestamp to export filenames
-- `TMP_DB` — override temporary `chat.db` copy path
-- `METADATA_FILE` — metadata JSON file path
+- See [`backend/README.md#environment-variables-single-source-of-truth`](backend/README.md#environment-variables-single-source-of-truth)
+
+The canonical implementation is `backend/src/config.py`.
 
 ---
 
