@@ -1,33 +1,61 @@
-# Archiver Frontend
+# 🎨 Archiver Frontend (React + Vite)
 
-This directory contains the React-based user interface for the Archiver application.
+The frontend is a React + TypeScript single-page application used inside Electron.
 
-## Tech Stack
-- **Framework**: React 18
-- **Language**: TypeScript
-- **Build Tool**: Vite
-- **Styling**: Tailwind CSS
-- **Animation**: Framer Motion
-- **Icons**: Lucide React
+---
 
-## Development
-For full development instructions, see the [main README](../README.md).
+## Stack
 
-### Independent UI Development
-You can run the UI independently of the Electron shell (mocking the backend might be required for some features):
+- **React 18**
+- **TypeScript**
+- **Vite**
+- **Tailwind CSS**
+- **Framer Motion**
+- **Recharts**
+
+---
+
+## Install
+
+From `frontend/`:
+
+```bash
+npm install
+```
+
+---
+
+## Run (UI-only)
 
 ```bash
 npm run dev
 ```
 
-### Building
-The build output is generated in `dist/`.
+Default dev URL: `http://localhost:5173`
+
+> Some features depend on the local backend API. For full app behavior, run Electron + backend from the project root.
+
+---
+
+## Build
 
 ```bash
 npm run build
 ```
 
-### Linting
+Build output is generated in `frontend/dist/`.
+
+---
+
+## Preview production build
+
 ```bash
-npm run lint
+npm run preview
 ```
+
+---
+
+## Related docs
+
+- Main project setup: [`../README.md`](../README.md)
+- Backend API docs: [`../backend/README.md`](../backend/README.md)

@@ -1,76 +1,93 @@
-# iMessage Archiver
+# 📦 iMessage Archiver
 
-A professional, high-performance desktop application for archiving, searching, and visualizing iMessage history. Built with Electron, React, and FastAPI.
+A polished desktop application for browsing, searching, and exporting iMessage history locally on your Mac.
 
-## Features
+> **Stack:** Electron + React + FastAPI + SQLite
 
-- **Local Archiving**: Securely archive your iMessages from your local Mac database.
-- **Media Extraction**: Automatically extracts and organizes photos, videos, and audio.
-- **Search & Explore**: Fast, full-text search across all your conversations.
-- **Analytics**: View global stats and chat-specific usage trends.
-- **Modern UI**: Dark-mode optimized, responsive interface with smooth animations.
-- **Formats**: Export to CSV, JSON, or Markdown globally or per chat.
+---
 
-## Architecture
+## ✨ What this app does
 
-- **Frontend**: React 18, TypeScript, Vite, Tailwind CSS, Framer Motion.
-- **Backend**: Python 3 (FastAPI), SQLite (referencing local `chat.db`).
-- **App Wrapper**: Electron.
+- Archive conversations from your local iMessage database.
+- Explore chats and messages in a modern desktop UI.
+- Export chat data to **CSV**, **JSON**, or **Markdown**.
+- View conversation-level analytics and global stats.
 
-## Prerequisites
+---
 
-- **macOS**: This application is currently designed for macOS (requires access to `~/Library/Messages/chat.db`).
-- **Node.js**: v18.0.0 or higher.
-- **Python**: v3.10 or higher.
+## 🧱 Architecture
 
-## Development Setup
+| Layer | Technology | Purpose |
+|---|---|---|
+| Desktop shell | Electron | Native desktop windowing, lifecycle, packaging |
+| Frontend | React 18 + TypeScript + Vite + Tailwind | UI, routing, data display |
+| Backend API | FastAPI + Uvicorn | Data access, archive operations |
+| Data source | macOS `chat.db` (SQLite) | iMessage message/chat storage |
 
-1. **Install Frontend/Electron Dependencies**
-   ```bash
-   npm install
-   cd frontend && npm install && cd ..
-   ```
+---
 
-2. **Setup Python Backend**
-   It is recommended to use a virtual environment or ensure your global python3 has the requirements.
-   ```bash
-   # Create venv (optional but recommended)
-   python3 -m venv backend/venv
-   source backend/venv/bin/activate
+## ✅ Prerequisites
 
-   # Install dependencies
-   pip install -r backend/requirements.txt
-   ```
-   
-   > **Note**: The Electron app uses the system `python3` command by default in development. Ensure the dependencies are installed where `python3` resolves, or launch the app from an active virtual environment shell.
+- **macOS** (required to access `~/Library/Messages/chat.db`)
+- **Node.js 18+**
+- **Python 3.10+**
 
-3. **Run in Development Mode**
-   ```bash
-   npm run dev
-   ```
-   This command starts the Vite dev server and the Electron app. The Electron app will automatically spawn the Python backend server.
+---
 
-## Building for Production
+## 🚀 Development setup
 
-To compile without packaging:
+### 1) Install JavaScript dependencies
+
+From repository root:
+
+```bash
+npm install
+cd frontend && npm install && cd ..
+```
+
+### 2) Install backend Python dependencies
+
+```bash
+python3 -m venv backend/venv
+source backend/venv/bin/activate
+pip install -r backend/requirements.txt
+```
+
+> The Electron process uses `python3` in your environment. If using a virtualenv, run Electron commands from the activated shell.
+
+### 3) Run in development
+
+Use two terminals:
+
+**Terminal A (frontend + TypeScript watch):**
+```bash
+npm run dev
+```
+
+**Terminal B (launch Electron app):**
+```bash
+npm run start
+```
+
+`npm run dev` starts Vite and continuously compiles Electron TypeScript. `npm run start` launches Electron.
+
+---
+
+## 🏗️ Build and package
+
+### Build app artifacts (no installer)
 
 ```bash
 npm run build
 ```
 
-To create distributables:
+### Create distributables
 
 ```bash
 npm run dist
 ```
 
-This will:
-1. Compile the Electron main process.
-2. Build the React frontend.
-3. Package the application using `electron-builder`.
-4. Output the result to the `release/` directory.
-
-macOS packaging targets:
+Additional macOS targets:
 
 ```bash
 npm run dist:mac
@@ -79,29 +96,64 @@ npm run dist:signed
 npm run dist:notarized
 ```
 
-Signing / notarization environment variables:
-- `CSC_NAME` or `CSC_LINK` + `CSC_KEY_PASSWORD` (Developer ID Application identity)
-- `APPLE_ID`, `APPLE_APP_SPECIFIC_PASSWORD`, `APPLE_TEAM_ID` (notarization)
+Build output is written to `release/`.
 
-## Project Structure
+---
 
-- `electron/`: Main process code (window management, Python process lifecycle).
-- `frontend/`: React application (UI, components, pages).
-- `backend/`: Python source code.
-    - `src/app.py`: FastAPI entry point.
-    - `src/engine.py`: Core archiving logic and file processing.
-    - `src/db.py`: Database interaction layer.
-- `scripts/`: various maintenance scripts.
+## 🔐 Signing / notarization environment variables
 
-## Configuration
+For signed/notarized macOS builds, configure:
 
-The backend supports several environment variables to customize behavior:
+- `CSC_NAME` **or** `CSC_LINK` + `CSC_KEY_PASSWORD`
+- `APPLE_ID`
+- `APPLE_APP_SPECIFIC_PASSWORD`
+- `APPLE_TEAM_ID`
 
-- **`OUT_DIR`**: Directory where archived chats are saved. Defaults to `~/Analyzed`.
-- **`TIMESTAMP_FILENAME`**: Set to `1` to append a timestamp to the export filename (e.g., `chat_export_20240101.csv`).
-- **`TMP_DB`**: Override path for the temporary copy of the `chat.db`.
-- **`METADATA_FILE`**: Path to the JSON file storing app metadata.
+---
 
-## Troubleshooting
+## 📁 Project structure
 
-- **Database Permissions**: The app needs "Full Disk Access" or access to `~/Library/Messages`. If you see permission errors, ensure your Terminal (in dev) or the App (in prod) has the necessary permissions in macOS System Settings > Privacy & Security > Full Disk Access.
+```text
+.
+├── electron/   # Desktop main/preload code
+├── frontend/   # React UI
+├── backend/    # FastAPI service + archive engine
+├── scripts/    # Build/install/utility scripts
+└── assets/     # App icons and branding
+```
+
+---
+
+## ⚙️ Backend environment configuration
+
+The backend supports these environment variables:
+
+- `OUT_DIR` — output directory for archived chats (default: `~/Analyzed`)
+- `TIMESTAMP_FILENAME` — set to `1` to append a timestamp to export filenames
+- `TMP_DB` — override temporary `chat.db` copy path
+- `METADATA_FILE` — metadata JSON file path
+
+---
+
+## 🩺 Troubleshooting
+
+### Permission issues reading iMessage DB
+
+Grant **Full Disk Access** to:
+
+- Terminal (for development)
+- Archiver app (for packaged builds)
+
+Path: **System Settings → Privacy & Security → Full Disk Access**.
+
+### Backend fails to start
+
+- Confirm `python3` points to an environment with dependencies installed.
+- Confirm no process is already bound to `127.0.0.1:8000`.
+
+---
+
+## 📚 Additional docs
+
+- Backend details: [`backend/README.md`](backend/README.md)
+- Frontend details: [`frontend/README.md`](frontend/README.md)
