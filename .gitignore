@@ -421,3 +421,7 @@ backend/.pyi_spec/
 .vscode/
 
 # End of .gitignore
+
+# Keep frontend source lib utilities tracked
+!frontend/src/lib/
+!frontend/src/lib/**
