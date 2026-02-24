@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import { api, type ArchiveFormat, type RecentChat } from '../api/client';
+import { EmptyState, ErrorState, LoadingState } from '../components/StateViews';
 
 export function Media() {
     const [chats, setChats] = useState<RecentChat[]>([]);
@@ -14,9 +15,9 @@ export function Media() {
         setError(null);
         try {
             const data = await api.getRecentChats({ limit: 30 });
-            setChats(data);
-        } catch (err: any) {
-            setError(err?.message || 'Failed to load chats for export');
+            setChats(data ?? []);
+        } catch (err) {
+            setError(err instanceof Error ? err.message : 'Failed to load chats for export');
         } finally {
             setLoading(false);
         }
@@ -31,9 +32,9 @@ export function Media() {
         setStatus(null);
         try {
             const res = await api.archiveChat(chat.chat_guid, { format, incremental: true });
-            setStatus(`Exported ${res.count} messages from ${chat.display_names}${res.path ? ` → ${res.path}` : ''}`);
-        } catch (err: any) {
-            setStatus(err?.message || 'Export failed');
+            setStatus(`Exported ${res?.count ?? 0} messages from ${chat.display_names}${res?.path ? ` → ${res.path}` : ''}`);
+        } catch (err) {
+            setStatus(err instanceof Error ? err.message : 'Export failed');
         } finally {
             setExporting(null);
         }
@@ -61,10 +62,10 @@ export function Media() {
             </div>
 
             {status && <div className="text-sm rounded-lg border border-stroke bg-bg1/70 p-3">{status}</div>}
-            {loading && <div className="text-muted">Loading chats...</div>}
-            {error && <div className="text-red-300">{error}</div>}
+            {loading && <LoadingState message="Loading chats..." />}
+            {error && <ErrorState message={error} />}
 
-            {!loading && !error && chats.length === 0 && <div className="text-muted">No chats available for export.</div>}
+            {!loading && !error && chats.length === 0 && <EmptyState message="No chats available for export." />}
 
             {!loading && !error && chats.length > 0 && (
                 <div className="space-y-2">
