@@ -78,7 +78,7 @@ class ArchiveJobStatus(BaseModel):
     progress: int
     processed: int
     total: int
-    result: Optional[Dict[str, Any]] = None
+    result: Optional[Dict[Literal["path", "count"], Union[str, int, None]]] = None
     error: Optional[str] = None
     cancel_requested: bool = False
     created_at: str
