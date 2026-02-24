@@ -171,22 +171,13 @@ def get_onboarding_status():
     return {
         "complete": metadata.get("ui_defaults", {}).get("onboarding_complete", False),
         "step": metadata.get("ui_defaults", {}).get("onboarding_step", 1)
-    }
-
-@app.post("/onboarding/complete")
-def complete_onboarding():
-    metadata = db.load_metadata()
-    metadata.setdefault("ui_defaults", {})["onboarding_complete"] = True
-    db.save_metadata(metadata)
-    return {"status": "ok"}
-
-@app.post("/archive/jobs", response_model=ArchiveJobStatus)
-def create_archive_job(req: ArchiveRequest):
     try:
-        if not req.chat_guid:
-            raise HTTPException(status_code=400, detail="chat_guid is required")
         return job_store.enqueue_archive_job(req.chat_guid, req.format, req.incremental)
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=_safe_detail(e))
     except Exception as e:
+        # Log the exception for debugging purposes
+        # logger.exception("Failed to enqueue archive job")
         raise HTTPException(status_code=500, detail=_safe_detail(e))
 
 @app.get("/archive/jobs/{job_id}", response_model=ArchiveJobStatus)
