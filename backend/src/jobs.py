@@ -124,16 +124,16 @@ class ArchiveJobStore:
                 "completed_at": done,
                 "error": None,
             })
+        except JobCanceledError:
+            done = _utc_now_iso()
+            self._save_job(job_id, {
+                "status": "canceled",
+                "updated_at": done,
+                "completed_at": done,
+                "error": None,
+            })
+            return
         except RuntimeError as err:
-            if "cancel" in str(err).lower():
-                done = _utc_now_iso()
-                self._save_job(job_id, {
-                    "status": "canceled",
-                    "updated_at": done,
-                    "completed_at": done,
-                    "error": None,
-                })
-                return
             done = _utc_now_iso()
             self._save_job(job_id, {
                 "status": "failed",
