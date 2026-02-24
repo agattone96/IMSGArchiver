@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { api, type ArchiveFormat, type ArchiveJob, type RecentChat } from '../api/client';
+import { EmptyState, ErrorState, LoadingState } from '../components/StateViews';
 
 export function Media() {
     const [chats, setChats] = useState<RecentChat[]>([]);
@@ -17,9 +18,9 @@ export function Media() {
         setError(null);
         try {
             const data = await api.getRecentChats({ limit: 30 });
-            setChats(data);
-        } catch (err: any) {
-            setError(err?.message || 'Failed to load chats for export');
+            setChats(data ?? []);
+        } catch (err) {
+            setError(err instanceof Error ? err.message : 'Failed to load chats for export');
         } finally {
             setLoading(false);
         }
@@ -42,6 +43,10 @@ export function Media() {
         let keepPolling = true;
         while (keepPolling) {
             const job = await api.getArchiveJob(jobId);
+            if (!job) {
+                setStatus('Unable to fetch export status');
+                break;
+            }
             setActiveJob(job);
             if (job.status === 'completed') {
                 const outPath = job.result?.path ? ` → ${job.result.path}` : '';
@@ -66,11 +71,15 @@ export function Media() {
         setStatus(null);
         try {
             const job = await api.enqueueArchiveJob(chat.chat_guid, { format, incremental: true });
+            if (!job) {
+                setStatus('Unable to start export');
+                return;
+            }
             setActiveChatName(chat.display_names);
             setActiveJob(job);
             await pollJobUntilDone(job.id, chat.display_names);
-        } catch (err: any) {
-            setStatus(err?.message || 'Export failed');
+        } catch (err) {
+            setStatus(err instanceof Error ? err.message : 'Export failed');
             setActiveJob(null);
             setActiveChatName(null);
         }
@@ -80,9 +89,11 @@ export function Media() {
         if (!activeJob) return;
         try {
             const canceled = await api.cancelArchiveJob(activeJob.id);
-            setActiveJob(canceled);
-        } catch (err: any) {
-            setStatus(err?.message || 'Cancel failed');
+            if (canceled) {
+                setActiveJob(canceled);
+            }
+        } catch (err) {
+            setStatus(err instanceof Error ? err.message : 'Cancel failed');
         }
     };
 
@@ -139,10 +150,10 @@ export function Media() {
             )}
 
             {status && <div className="text-sm rounded-lg border border-stroke bg-bg1/70 p-3">{status}</div>}
-            {loading && <div className="text-muted">Loading chats...</div>}
-            {error && <div className="text-red-300">{error}</div>}
+            {loading && <LoadingState message="Loading chats..." />}
+            {error && <ErrorState message={error} />}
 
-            {!loading && !error && chats.length === 0 && <div className="text-muted">No chats available for export.</div>}
+            {!loading && !error && chats.length === 0 && <EmptyState message="No chats available for export." />}
 
             {!loading && !error && chats.length > 0 && (
                 <div className="space-y-2">

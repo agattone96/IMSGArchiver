@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { api, type GlobalStats, type RecentChat } from '../api/client';
+import { EmptyState, ErrorState, LoadingState } from '../components/StateViews';
 
 export function Dashboard() {
     const [stats, setStats] = useState<GlobalStats | null>(null);
@@ -20,10 +21,10 @@ export function Dashboard() {
                 ]);
                 if (!cancelled) {
                     setStats(statsRes);
-                    setChats(chatsRes);
+                    setChats(chatsRes ?? []);
                 }
-            } catch (err: any) {
-                if (!cancelled) setError(err?.message || 'Failed to load dashboard');
+            } catch (err) {
+                if (!cancelled) setError(err instanceof Error ? err.message : 'Failed to load dashboard');
             } finally {
                 if (!cancelled) setLoading(false);
             }
@@ -54,8 +55,8 @@ export function Dashboard() {
                 <Link to="/analytics" className="text-sm font-semibold text-cyan hover:text-white">View analytics →</Link>
             </div>
 
-            {loading && <div className="text-muted">Loading dashboard data...</div>}
-            {error && <div className="text-red-300 bg-red-500/10 border border-red-500/30 rounded-xl p-4">{error}</div>}
+            {loading && <LoadingState message="Loading dashboard data..." />}
+            {error && <ErrorState message={error} className="text-red-300 bg-red-500/10 border border-red-500/30 rounded-xl p-4" />}
 
             {!loading && !error && stats && (
                 <>
@@ -75,7 +76,7 @@ export function Dashboard() {
                         </div>
 
                         {chats.length === 0 ? (
-                            <div className="text-muted">No chats found yet. Import data, then refresh.</div>
+                            <EmptyState message="No chats found yet. Import data, then refresh." />
                         ) : (
                             <div className="space-y-2">
                                 {chats.map(chat => (

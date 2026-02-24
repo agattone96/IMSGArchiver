@@ -6,7 +6,7 @@ const redactPaths = (message: string) => {
     return message.replace(PATH_RE, '[redacted]');
 };
 
-async function fetchJson<T>(path: string, options?: RequestInit): Promise<T> {
+async function fetchJson<T>(path: string, options?: RequestInit): Promise<T | null> {
     try {
         const response = await fetch(`${API_BASE}${path}`, options);
         const contentType = response.headers.get('content-type') || '';
@@ -30,9 +30,10 @@ async function fetchJson<T>(path: string, options?: RequestInit): Promise<T> {
         if (isJson) {
             return await response.json();
         }
-        return null as T;
-    } catch (err: any) {
-        const safeMessage = redactPaths(err?.message || 'Network error');
+        return null;
+    } catch (err) {
+        const message = err instanceof Error ? err.message : 'Unknown network error';
+        const safeMessage = redactPaths(message);
         console.error(safeMessage);
         throw new Error(safeMessage);
     }

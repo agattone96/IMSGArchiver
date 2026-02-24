@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Bar, BarChart, CartesianGrid, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts';
 import { api, type GlobalStats } from '../api/client';
+import { EmptyState, ErrorState, LoadingState } from '../components/StateViews';
 
 export function Analytics() {
     const [stats, setStats] = useState<GlobalStats | null>(null);
@@ -15,8 +16,8 @@ export function Analytics() {
             try {
                 const data = await api.getGlobalStats();
                 if (!cancelled) setStats(data);
-            } catch (err: any) {
-                if (!cancelled) setError(err?.message || 'Failed to load analytics');
+            } catch (err) {
+                if (!cancelled) setError(err instanceof Error ? err.message : 'Failed to load analytics');
             } finally {
                 if (!cancelled) setLoading(false);
             }
@@ -43,8 +44,8 @@ export function Analytics() {
                 <p className="text-muted">High-level usage and archive metrics.</p>
             </div>
 
-            {loading && <div className="text-muted">Loading analytics...</div>}
-            {error && <div className="text-red-300 bg-red-500/10 border border-red-500/30 rounded-xl p-4">{error}</div>}
+            {loading && <LoadingState message="Loading analytics..." />}
+            {error && <ErrorState message={error} className="text-red-300 bg-red-500/10 border border-red-500/30 rounded-xl p-4" />}
 
             {!loading && !error && stats && (
                 <>
@@ -79,7 +80,7 @@ export function Analytics() {
                             </div>
                         </section>
                     ) : (
-                        <div className="text-muted">No analytics data available.</div>
+                        <EmptyState message="No analytics data available." />
                     )}
                 </>
             )}
