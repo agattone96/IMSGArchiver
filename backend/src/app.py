@@ -2,7 +2,7 @@ import uvicorn
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, validator
-from typing import Optional, List
+from typing import Optional, List, Literal, Dict, Any
 import sys
 import os
 
@@ -12,6 +12,7 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from backend.src import engine, db
 from backend.src.config import OUT_DIR
 from backend.src.helpers import decode_body, mac_timestamp_to_iso, redact_path
+from backend.src.jobs import job_store
 
 def _safe_detail(err: Exception) -> str:
     detail = redact_path(str(err))
@@ -67,6 +68,25 @@ class ArchiveRequest(BaseModel):
             raise ValueError("Unsupported format")
         return v
 
+class ArchiveJobStatus(BaseModel):
+    id: str
+    type: Literal["archive_chat"]
+    chat_guid: str
+    format: str
+    incremental: bool
+    status: Literal["queued", "running", "completed", "failed", "canceled"]
+    progress: int
+    processed: int
+    total: int
+    result: Optional[Dict[Literal["path", "count"], Union[str, int, None]]] = None
+    error: Optional[str] = None
+    cancel_requested: bool = False
+    created_at: str
+    updated_at: str
+    started_at: Optional[str] = None
+    completed_at: Optional[str] = None
+
+
 # --- API Endpoints ---
 
 @app.get("/system/status")
@@ -80,8 +100,7 @@ def health():
 @app.get("/stats/global")
 def get_global_stats():
     try:
-        stats = engine.get_global_stats() # Verify engine has this or add it
-        # Polyfill if engine doesn't return everything
+        stats = engine.get_global_stats()
         return {
             "total_messages": stats.get("total_messages", 0),
             "total_chats": stats.get("total_chats", 0),
@@ -107,8 +126,6 @@ def get_recent_chats(search: Optional[str] = None, limit: int = 50):
 @app.get("/chats/{guid}/messages", response_model=List[Message])
 def get_chat_messages(guid: str, limit: int = 50):
     try:
-        # We need a new DB function for this to return raw structured data
-        # For now, we simulate or reuse existing logic
         conn = db.get_db_connection()
         cur = conn.cursor()
         sql = """
@@ -122,15 +139,12 @@ def get_chat_messages(guid: str, limit: int = 50):
         """
         rows = [dict(r) for r in cur.execute(sql, (guid, limit))]
         conn.close()
-        
+
         h_map = db.get_handle_map()
         results = []
         for r in reversed(rows):
-            # Decode body
             text_decoded = decode_body(r['text'], r['attributedBody'])
-            
             sender_name = "Me" if r['is_from_me'] else db.resolve_name(r['handle_id'], h_map)
-            
             handle_id = str(r["handle_id"]) if r["handle_id"] is not None else None
 
             results.append({
@@ -141,7 +155,7 @@ def get_chat_messages(guid: str, limit: int = 50):
                 "handle_id": handle_id,
                 "sender_name": sender_name
             })
-            
+
         return results
     except Exception as e:
         raise HTTPException(status_code=500, detail=_safe_detail(e))
@@ -157,33 +171,34 @@ def get_onboarding_status():
     return {
         "complete": metadata.get("ui_defaults", {}).get("onboarding_complete", False),
         "step": metadata.get("ui_defaults", {}).get("onboarding_step", 1)
-    }
+    try:
+        return job_store.enqueue_archive_job(req.chat_guid, req.format, req.incremental)
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=_safe_detail(e))
+    except Exception as e:
+        # Log the exception for debugging purposes
+        # logger.exception("Failed to enqueue archive job")
+        raise HTTPException(status_code=500, detail=_safe_detail(e))
 
-@app.post("/onboarding/complete")
-def complete_onboarding():
-    metadata = db.load_metadata()
-    metadata.setdefault("ui_defaults", {})["onboarding_complete"] = True
-    db.save_metadata(metadata)
-    return {"status": "ok"}
+@app.get("/archive/jobs/{job_id}", response_model=ArchiveJobStatus)
+def get_archive_job(job_id: str):
+    job = job_store.get_job(job_id)
+    if not job:
+        raise HTTPException(status_code=404, detail="Job not found")
+    return job
+
+@app.post("/archive/jobs/{job_id}/cancel", response_model=ArchiveJobStatus)
+def cancel_archive_job(job_id: str):
+    job = job_store.request_cancel(job_id)
+    if not job:
+        raise HTTPException(status_code=404, detail="Job not found")
+    return job
 
 @app.post("/chats/{guid}/archive")
 def archive_chat_endpoint(guid: str, req: ArchiveRequest):
-    try:
-        # This implementation blocks the request. Ideally, this should be a background task.
-        # For now, we keep it simple as per original design, but maybe we can return a job ID later.
-        if req.chat_guid and req.chat_guid != guid:
-            raise HTTPException(status_code=400, detail="chat_guid mismatch")
-        path, count = engine.archive_chat(guid, req.format, req.incremental)
-        safe_path = None
-        if path:
-            try:
-                rel = os.path.relpath(path, OUT_DIR)
-                safe_path = rel if not rel.startswith("..") else os.path.basename(path)
-            except Exception:
-                safe_path = os.path.basename(path)
-        return {"status": "ok", "path": safe_path, "count": count}
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=_safe_detail(e))
+    if req.chat_guid and req.chat_guid != guid:
+        raise HTTPException(status_code=400, detail="chat_guid mismatch")
+    return job_store.enqueue_archive_job(guid, req.format, req.incremental)
 
 if __name__ == "__main__":
     uvicorn.run(app, host="127.0.0.1", port=8000)
