@@ -2,6 +2,7 @@
   "name": "imessage-archiver",
   "version": "1.1.0",
   "description": "Professional iMessage Archiver Client",
+  "license": "MIT",
   "private": true,
   "homepage": "https://github.com/antigravity/archiver",
   "author": {
