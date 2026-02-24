@@ -116,7 +116,7 @@ def _unique_output_path(out_dir, base_name, ext, force_timestamp=False):
         i += 1
     return candidate
 
-def archive_chat(chat_guid, format_ext, is_incremental, metadata=None, h_map=None, progress_callback=None):
+def archive_chat(chat_guid, format_ext, is_incremental, metadata=None, h_map=None, progress_callback=None, cancel_check=None):
     format_ext = (format_ext or "").lower().strip().lstrip(".")
     if format_ext not in ALLOWED_FORMATS:
         raise ValueError("Unsupported export format")
@@ -200,7 +200,9 @@ def archive_chat(chat_guid, format_ext, is_incremental, metadata=None, h_map=Non
     final_data = []
     total = len(msg_list)
     for i, m in enumerate(msg_list):
-        if progress_callback: progress_callback(i, total)
+        if cancel_check and cancel_check():
+            raise RuntimeError("Archive job canceled")
+        if progress_callback: progress_callback(i + 1, total)
 
         att_res = results_map.get(m["row_id"], [])
         rel_paths = [r[0] for r in att_res if r[0]]
