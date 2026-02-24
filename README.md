@@ -34,6 +34,17 @@ npm run start
 - Export chat data to CSV, JSON, or Markdown.
 - View conversation and global analytics.
 
+## Current frontend implementation status
+
+Implemented screens and interactions:
+
+- **Dashboard**: pulls `/stats/global` and `/chats/recent`, shows KPI cards and recent chat list.
+- **Messages**: searchable chat list using `/chats/recent?search=...`, selectable conversation view with `/chats/{guid}/messages`.
+- **Analytics**: global stat cards plus a chart built from `/stats/global`.
+- **Media**: chat export workflow with format selector and action buttons calling `/chats/{guid}/archive`.
+
+UI states implemented across these pages: loading, API error, and empty-result handling.
+
 ## Prerequisites
 
 - macOS (required for `~/Library/Messages/chat.db` access)
