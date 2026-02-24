@@ -411,6 +411,18 @@ config.json
 # Application specific
 # --------------------
 # Archiver user data if stored locally during dev
+Cache/
+Code Cache/
+Cookies*
+DawnCache/
+GPUCache/
+Local Storage/
+Session Storage/
+Shared Dictionary/
+Trust Tokens*
+Network Persistent State
+Preferences
+
 frontend/dist/
 backend/venv/
 backend/bin/
