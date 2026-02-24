@@ -63,13 +63,28 @@ export interface GlobalStats {
     storage_path: string;
 }
 
-export interface ArchiveResponse {
-    status: 'ok';
-    path: string | null;
-    count: number;
-}
-
 export type ArchiveFormat = 'csv' | 'json' | 'md';
+
+export type ArchiveJobStatusType = 'queued' | 'running' | 'completed' | 'failed' | 'canceled';
+
+export interface ArchiveJob {
+    id: string;
+    type: 'archive_chat';
+    chat_guid: string;
+    format: ArchiveFormat;
+    incremental: boolean;
+    status: ArchiveJobStatusType;
+    progress: number;
+    processed: number;
+    total: number;
+    result: { path: string | null; count: number } | null;
+    error: string | null;
+    cancel_requested: boolean;
+    created_at: string;
+    updated_at: string;
+    started_at: string | null;
+    completed_at: string | null;
+}
 
 export const api = {
     getOnboardingStatus: async () => {
@@ -97,8 +112,8 @@ export const api = {
     getGlobalStats: async () => {
         return await fetchJson<GlobalStats>('/stats/global');
     },
-    archiveChat: async (guid: string, body?: { format?: ArchiveFormat; incremental?: boolean }) => {
-        return await fetchJson<ArchiveResponse>(`/chats/${encodeURIComponent(guid)}/archive`, {
+    enqueueArchiveJob: async (guid: string, body?: { format?: ArchiveFormat; incremental?: boolean }) => {
+        return await fetchJson<ArchiveJob>('/archive/jobs', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
@@ -107,5 +122,11 @@ export const api = {
                 incremental: body?.incremental ?? true
             })
         });
+    },
+    getArchiveJob: async (jobId: string) => {
+        return await fetchJson<ArchiveJob>(`/archive/jobs/${encodeURIComponent(jobId)}`);
+    },
+    cancelArchiveJob: async (jobId: string) => {
+        return await fetchJson<ArchiveJob>(`/archive/jobs/${encodeURIComponent(jobId)}/cancel`, { method: 'POST' });
     }
 };
