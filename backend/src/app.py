@@ -41,7 +41,7 @@ class Message(BaseModel):
     text: str
     is_from_me: bool
     date: str # ISO
-    handle_id: Optional[int] = None
+    handle_id: Optional[str] = None
     sender_name: Optional[str] = None
 
 class GlobalStats(BaseModel):
@@ -131,12 +131,14 @@ def get_chat_messages(guid: str, limit: int = 50):
             
             sender_name = "Me" if r['is_from_me'] else db.resolve_name(r['handle_id'], h_map)
             
+            handle_id = str(r["handle_id"]) if r["handle_id"] is not None else None
+
             results.append({
                 "row_id": r['row_id'],
                 "text": text_decoded or "",
                 "is_from_me": bool(r['is_from_me']),
                 "date": mac_timestamp_to_iso(r['date']),
-                "handle_id": r['handle_id'],
+                "handle_id": handle_id,
                 "sender_name": sender_name
             })
             
