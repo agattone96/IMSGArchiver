@@ -183,6 +183,8 @@ def complete_onboarding():
 @app.post("/archive/jobs", response_model=ArchiveJobStatus)
 def create_archive_job(req: ArchiveRequest):
     try:
+        if not req.chat_guid:
+            raise HTTPException(status_code=400, detail="chat_guid is required")
         return job_store.enqueue_archive_job(req.chat_guid, req.format, req.incremental)
     except Exception as e:
         raise HTTPException(status_code=500, detail=_safe_detail(e))
