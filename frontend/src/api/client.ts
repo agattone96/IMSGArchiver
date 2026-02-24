@@ -6,7 +6,7 @@ const redactPaths = (message: string) => {
     return message.replace(PATH_RE, '[redacted]');
 };
 
-async function fetchJson<T>(path: string, options?: RequestInit): Promise<T> {
+async function fetchJson<T>(path: string, options?: RequestInit): Promise<T | null> {
     try {
         const response = await fetch(`${API_BASE}${path}`, options);
         const contentType = response.headers.get('content-type') || '';
@@ -30,9 +30,10 @@ async function fetchJson<T>(path: string, options?: RequestInit): Promise<T> {
         if (isJson) {
             return await response.json();
         }
-        return null as T;
-    } catch (err: any) {
-        const safeMessage = redactPaths(err?.message || 'Network error');
+        return null;
+    } catch (err) {
+        const message = err instanceof Error ? err.message : 'Unknown network error';
+        const safeMessage = redactPaths(message);
         console.error(safeMessage);
         throw new Error(safeMessage);
     }
@@ -67,6 +68,17 @@ export interface ArchiveResponse {
     status: 'ok';
     path: string | null;
     count: number;
+}
+
+export interface ArchiveJob {
+    id: string;
+    chat_guid: string;
+    status: 'queued' | 'running' | 'completed' | 'failed' | 'canceled';
+    progress: number;
+    processed: number;
+    total: number;
+    error: string | null;
+    result: ArchiveResponse | null;
 }
 
 export type ArchiveFormat = 'csv' | 'json' | 'md';
@@ -107,5 +119,22 @@ export const api = {
                 incremental: body?.incremental ?? true
             })
         });
+    },
+    enqueueArchiveJob: async (guid: string, body?: { format?: ArchiveFormat; incremental?: boolean }) => {
+        return await fetchJson<ArchiveJob>(`/chats/${encodeURIComponent(guid)}/archive/jobs`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                chat_guid: guid,
+                format: body?.format ?? 'csv',
+                incremental: body?.incremental ?? true
+            })
+        });
+    },
+    getArchiveJob: async (jobId: string) => {
+        return await fetchJson<ArchiveJob>(`/archive/jobs/${encodeURIComponent(jobId)}`);
+    },
+    cancelArchiveJob: async (jobId: string) => {
+        return await fetchJson<ArchiveJob>(`/archive/jobs/${encodeURIComponent(jobId)}/cancel`, { method: 'POST' });
     }
 };

@@ -5,6 +5,9 @@ from pydantic import BaseModel, validator
 from typing import Optional, List
 import sys
 import os
+import threading
+import time
+from uuid import uuid4
 
 # Add project root to sys.path so 'backend' package is importable
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
@@ -66,6 +69,62 @@ class ArchiveRequest(BaseModel):
         if v not in {"csv", "json", "md"}:
             raise ValueError("Unsupported format")
         return v
+
+class ArchiveJob(BaseModel):
+    id: str
+    chat_guid: str
+    status: str
+    progress: int = 0
+    processed: int = 0
+    total: int = 0
+    error: Optional[str] = None
+    result: Optional[dict] = None
+
+
+_jobs_lock = threading.Lock()
+_archive_jobs: dict[str, ArchiveJob] = {}
+
+
+def _set_job(job_id: str, **fields):
+    with _jobs_lock:
+        job = _archive_jobs.get(job_id)
+        if not job:
+            return
+        updated = job.copy(update=fields)
+        _archive_jobs[job_id] = updated
+
+
+def _run_archive_job(job_id: str, guid: str, req: ArchiveRequest):
+    _set_job(job_id, status="running", progress=10)
+    try:
+        for p in (25, 45, 70):
+            time.sleep(0.2)
+            with _jobs_lock:
+                curr = _archive_jobs.get(job_id)
+            if not curr or curr.status == "canceled":
+                return
+            _set_job(job_id, progress=p)
+
+        path, count = engine.archive_chat(guid, req.format, req.incremental)
+        safe_path = None
+        if path:
+            try:
+                rel = os.path.relpath(path, OUT_DIR)
+                safe_path = rel if not rel.startswith("..") else os.path.basename(path)
+            except Exception:
+                safe_path = os.path.basename(path)
+
+        _set_job(
+            job_id,
+            status="completed",
+            progress=100,
+            processed=count,
+            total=count,
+            result={"status": "ok", "path": safe_path, "count": count},
+            error=None,
+        )
+    except Exception as e:
+        _set_job(job_id, status="failed", error=_safe_detail(e))
 
 # --- API Endpoints ---
 
@@ -184,6 +243,54 @@ def archive_chat_endpoint(guid: str, req: ArchiveRequest):
         return {"status": "ok", "path": safe_path, "count": count}
     except Exception as e:
         raise HTTPException(status_code=500, detail=_safe_detail(e))
+
+
+@app.post("/chats/{guid}/archive/jobs", response_model=ArchiveJob)
+def enqueue_archive_job(guid: str, req: ArchiveRequest):
+    if req.chat_guid and req.chat_guid != guid:
+        raise HTTPException(status_code=400, detail="chat_guid mismatch")
+
+    job = ArchiveJob(
+        id=uuid4().hex,
+        chat_guid=guid,
+        status="queued",
+        progress=0,
+        processed=0,
+        total=0,
+        error=None,
+        result=None,
+    )
+    with _jobs_lock:
+        _archive_jobs[job.id] = job
+
+    thread = threading.Thread(target=_run_archive_job, args=(job.id, guid, req), daemon=True)
+    thread.start()
+    return job
+
+
+@app.get("/archive/jobs/{job_id}", response_model=ArchiveJob)
+def get_archive_job(job_id: str):
+    with _jobs_lock:
+        job = _archive_jobs.get(job_id)
+    if not job:
+        raise HTTPException(status_code=404, detail="Job not found")
+    return job
+
+
+@app.post("/archive/jobs/{job_id}/cancel", response_model=ArchiveJob)
+def cancel_archive_job(job_id: str):
+    with _jobs_lock:
+        job = _archive_jobs.get(job_id)
+    if not job:
+        raise HTTPException(status_code=404, detail="Job not found")
+
+    if job.status in {"completed", "failed", "canceled"}:
+        return job
+
+    _set_job(job_id, status="canceled", error=None)
+    with _jobs_lock:
+        updated = _archive_jobs[job_id]
+    return updated
 
 if __name__ == "__main__":
     uvicorn.run(app, host="127.0.0.1", port=8000)

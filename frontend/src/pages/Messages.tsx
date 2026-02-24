@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { api, type ChatMessage, type RecentChat } from '../api/client';
+import { EmptyState, ErrorState, LoadingState } from '../components/StateViews';
 
 export function Messages() {
     const [search, setSearch] = useState('');
@@ -25,13 +26,14 @@ export function Messages() {
             try {
                 const data = await api.getRecentChats({ search: query || undefined, limit: 100 });
                 if (!cancelled) {
-                    setChats(data);
-                    if (!selectedChat || !data.find(chat => chat.chat_guid === selectedChat.chat_guid)) {
-                        setSelectedChat(data[0] ?? null);
+                    const chatsData = data ?? [];
+                    setChats(chatsData);
+                    if (!selectedChat || !chatsData.find(chat => chat.chat_guid === selectedChat.chat_guid)) {
+                        setSelectedChat(chatsData[0] ?? null);
                     }
                 }
-            } catch (err: any) {
-                if (!cancelled) setChatError(err?.message || 'Failed to load chats');
+            } catch (err) {
+                if (!cancelled) setChatError(err instanceof Error ? err.message : 'Failed to load chats');
             } finally {
                 if (!cancelled) setLoadingChats(false);
             }
@@ -40,11 +42,13 @@ export function Messages() {
         return () => {
             cancelled = true;
         };
-    }, [query]);
+    }, [query, selectedChat]);
 
     useEffect(() => {
         if (!selectedChat) {
             setMessages([]);
+            setLoadingMessages(false);
+            setMessageError(null);
             return;
         }
 
@@ -54,9 +58,9 @@ export function Messages() {
             setMessageError(null);
             try {
                 const data = await api.getChatMessages(selectedChat.chat_guid, { limit: 250 });
-                if (!cancelled) setMessages(data);
-            } catch (err: any) {
-                if (!cancelled) setMessageError(err?.message || 'Failed to load messages');
+                if (!cancelled) setMessages(data ?? []);
+            } catch (err) {
+                if (!cancelled) setMessageError(err instanceof Error ? err.message : 'Failed to load messages');
             } finally {
                 if (!cancelled) setLoadingMessages(false);
             }
@@ -88,10 +92,10 @@ export function Messages() {
                     <div className="text-xs text-muted mt-2">{filteredCount} chats</div>
 
                     <div className="mt-4 space-y-2 overflow-y-auto pr-1">
-                        {loadingChats && <div className="text-muted text-sm">Loading chats...</div>}
-                        {chatError && <div className="text-red-300 text-sm">{chatError}</div>}
+                        {loadingChats && <LoadingState message="Loading chats..." className="text-muted text-sm" />}
+                        {chatError && <ErrorState message={chatError} className="text-red-300 text-sm" />}
                         {!loadingChats && !chatError && chats.length === 0 && (
-                            <div className="text-muted text-sm">No chats matched your search.</div>
+                            <EmptyState message="No chats matched your search." className="text-muted text-sm" />
                         )}
 
                         {chats.map(chat => {
@@ -119,11 +123,11 @@ export function Messages() {
                         {selectedChat ? selectedChat.display_names : 'Select a chat'}
                     </h2>
                     <div className="min-h-0 overflow-y-auto space-y-3 pr-1">
-                        {!selectedChat && <div className="text-muted">Choose a conversation to view messages.</div>}
-                        {loadingMessages && <div className="text-muted">Loading messages...</div>}
-                        {messageError && <div className="text-red-300">{messageError}</div>}
+                        {!selectedChat && <EmptyState message="Choose a conversation to view messages." />}
+                        {loadingMessages && <LoadingState message="Loading messages..." />}
+                        {messageError && <ErrorState message={messageError} />}
                         {!loadingMessages && !messageError && selectedChat && messages.length === 0 && (
-                            <div className="text-muted">No messages found for this chat.</div>
+                            <EmptyState message="No messages found for this chat." />
                         )}
 
                         {messages.map(msg => (
