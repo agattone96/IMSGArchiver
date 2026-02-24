@@ -39,10 +39,12 @@ class ArchiveJobStore:
             return dict(current)
 
     def _get_job(self, job_id: str) -> Optional[Dict[str, Any]]:
-        metadata = db.load_metadata()
-        jobs = self._ensure_jobs(metadata)
-        job = jobs.get(job_id)
-        return dict(job) if job else None
+        # Read under the same lock as writes to avoid races with file-based metadata
+        with self._lock:
+            metadata = db.load_metadata()
+            jobs = self._ensure_jobs(metadata)
+            job = jobs.get(job_id)
+            return dict(job) if job else None
 
     def enqueue_archive_job(self, chat_guid: str, format_ext: str, incremental: bool) -> Dict[str, Any]:
         now = _utc_now_iso()
