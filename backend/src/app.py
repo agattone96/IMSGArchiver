@@ -2,7 +2,7 @@ import uvicorn
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, validator
-from typing import Optional, List, Literal, Dict, Any
+from typing import Optional, List, Literal, Dict, Any, Union
 import sys
 import os
 
@@ -171,14 +171,18 @@ def get_onboarding_status():
     return {
         "complete": metadata.get("ui_defaults", {}).get("onboarding_complete", False),
         "step": metadata.get("ui_defaults", {}).get("onboarding_step", 1)
+    }
+
+
+@app.post("/archive/jobs", response_model=ArchiveJobStatus)
+def create_archive_job(req: ArchiveRequest):
     try:
         return job_store.enqueue_archive_job(req.chat_guid, req.format, req.incremental)
     except ValueError as e:
         raise HTTPException(status_code=400, detail=_safe_detail(e))
     except Exception as e:
-        # Log the exception for debugging purposes
-        # logger.exception("Failed to enqueue archive job")
         raise HTTPException(status_code=500, detail=_safe_detail(e))
+
 
 @app.get("/archive/jobs/{job_id}", response_model=ArchiveJobStatus)
 def get_archive_job(job_id: str):
@@ -187,18 +191,13 @@ def get_archive_job(job_id: str):
         raise HTTPException(status_code=404, detail="Job not found")
     return job
 
+
 @app.post("/archive/jobs/{job_id}/cancel", response_model=ArchiveJobStatus)
 def cancel_archive_job(job_id: str):
     job = job_store.request_cancel(job_id)
     if not job:
         raise HTTPException(status_code=404, detail="Job not found")
     return job
-
-@app.post("/chats/{guid}/archive")
-def archive_chat_endpoint(guid: str, req: ArchiveRequest):
-    if req.chat_guid and req.chat_guid != guid:
-        raise HTTPException(status_code=400, detail="chat_guid mismatch")
-    return job_store.enqueue_archive_job(guid, req.format, req.incremental)
 
 if __name__ == "__main__":
     uvicorn.run(app, host="127.0.0.1", port=8000)
