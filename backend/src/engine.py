@@ -42,13 +42,17 @@ def check_db_access(db_path=None):
         return False, f"Error accessing database: {str(e)}"
 
 def process_attachment_task(row_id, raw_path, mime, ts_iso, contact_dir, metadata):
-    metadata = metadata or {}
+    if metadata is None:
+        metadata = {}
     metadata.setdefault("cache", {})
+    metadata.setdefault("attachments", {})
+    metadata["attachments"].setdefault("by_hash", {})
     if not os.path.exists(raw_path): 
         return row_id, "", f" [Missing Attachment: {os.path.basename(raw_path)}]"
     
     file_hash = get_file_hash(raw_path)
     cached_data = metadata["cache"].get(file_hash) if file_hash else None
+    hash_index = metadata["attachments"]["by_hash"]
     extra_text = ""
     
     subfolder = "Files"
@@ -67,6 +71,13 @@ def process_attachment_task(row_id, raw_path, mime, ts_iso, contact_dir, metadat
     file_ts = ts_iso.replace(':','').replace('-','').replace(' ','_')
     new_name = f"{file_ts}_{safe_orig}"
     dest = os.path.join(media_dir, new_name)
+
+    if file_hash:
+        mirrored_rel = hash_index.get(file_hash)
+        if mirrored_rel:
+            mirrored_abs = os.path.join(contact_dir, mirrored_rel)
+            if os.path.exists(mirrored_abs):
+                return row_id, mirrored_rel, cached_data or ""
     
     if cached_data: 
         extra_text = cached_data
@@ -97,6 +108,8 @@ def process_attachment_task(row_id, raw_path, mime, ts_iso, contact_dir, metadat
     try:
         shutil.copy2(raw_path, dest)
         rel_path = os.path.join("Media", subfolder, new_name)
+        if file_hash:
+            hash_index[file_hash] = rel_path
         return row_id, rel_path, extra_text
     except: return row_id, "", extra_text
 

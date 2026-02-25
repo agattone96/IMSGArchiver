@@ -1,4 +1,5 @@
 import os
+import json
 import sqlite3
 import tempfile
 import unittest
@@ -59,6 +60,51 @@ class MirrorRepositoryTestCase(unittest.TestCase):
 
         self.assertEqual(revision_count, 1)
         self.assertEqual(audit_count, 1)
+
+    def test_attachment_upsert_and_dedup_lookup(self):
+        self.repo.upsert_attachment(
+            guid="a-1",
+            file_hash="hash-1",
+            original_path="/src/a.png",
+            archive_path="/archive/a.png",
+            lifecycle_state="active",
+        )
+        duplicate = self.repo.find_attachment_by_hash("hash-1")
+        self.assertIsNotNone(duplicate)
+        self.assertEqual(duplicate["guid"], "a-1")
+        self.assertEqual(duplicate["archive_path"], "/archive/a.png")
+
+    def test_attachment_lifecycle_state_changes_audited(self):
+        self.repo.upsert_attachment(
+            guid="a-2",
+            file_hash="hash-2",
+            original_path="/src/b.png",
+            archive_path="/archive/b.png",
+            lifecycle_state="active",
+        )
+
+        self.assertTrue(self.repo.mark_attachment_missing_source("a-2"))
+        self.assertTrue(self.repo.mark_attachment_orphaned("a-2"))
+
+        conn = sqlite3.connect(self.db_path)
+        cur = conn.cursor()
+        state = cur.execute(
+            "SELECT lifecycle_state FROM attachment_mirror WHERE guid = 'a-2'"
+        ).fetchone()[0]
+        rows = cur.execute(
+            "SELECT event_type, payload_json FROM audit_log WHERE guid = 'a-2' ORDER BY id"
+        ).fetchall()
+        conn.close()
+
+        self.assertEqual(state, "orphaned")
+        self.assertEqual([row[0] for row in rows], [
+            "ATTACHMENT_STATE_CHANGE",
+            "ATTACHMENT_STATE_CHANGE",
+            "ATTACHMENT_STATE_CHANGE",
+        ])
+        payload = json.loads(rows[-1][1])
+        self.assertEqual(payload["from"], "missing_source")
+        self.assertEqual(payload["to"], "orphaned")
 
 
 if __name__ == "__main__":
