@@ -1,43 +1,65 @@
 import sqlite3
 import os
 import json
-import shutil
-import tempfile
-import atexit
+import time
 from .config import DEFAULT_DB_PATH, TMP_DB, METADATA_FILE, TMP_CONTACTS_DIR
 from .helpers import mac_timestamp_to_iso, normalize_handle, redact_path
 
-_TEMP_DB_DIR = None
+SQLITE_BUSY_BACKOFF_SECONDS = (0.01, 0.05, 0.2)
 
-def _cleanup_temp_db():
-    global _TEMP_DB_DIR
-    if _TEMP_DB_DIR and os.path.isdir(_TEMP_DB_DIR):
-        shutil.rmtree(_TEMP_DB_DIR, ignore_errors=True)
-    _TEMP_DB_DIR = None
 
-def _get_fallback_db_path():
-    global _TEMP_DB_DIR
-    if _TEMP_DB_DIR is None:
-        _TEMP_DB_DIR = tempfile.mkdtemp(prefix="imessage_archiver_")
+def _is_sqlite_busy_error(error):
+    message = str(error).lower()
+    return "sqlite_busy" in message or "database is locked" in message or "database is busy" in message
+
+
+def _source_db_path():
+    return TMP_DB or DEFAULT_DB_PATH
+
+
+def _sqlite_ro_uri(path):
+    return f"file:{os.path.abspath(path)}?mode=ro"
+
+
+def _connect_readonly(path):
+    last_error = None
+    for attempt in range(len(SQLITE_BUSY_BACKOFF_SECONDS) + 1):
         try:
-            os.chmod(_TEMP_DB_DIR, 0o700)
-        except Exception:
-            pass
-        atexit.register(_cleanup_temp_db)
-    return os.path.join(_TEMP_DB_DIR, "imessage_archiver.db")
+            conn = sqlite3.connect(_sqlite_ro_uri(path), uri=True)
+            conn.row_factory = sqlite3.Row
+            return conn
+        except sqlite3.OperationalError as error:
+            last_error = error
+            if not _is_sqlite_busy_error(error) or attempt >= len(SQLITE_BUSY_BACKOFF_SECONDS):
+                raise
+            time.sleep(SQLITE_BUSY_BACKOFF_SECONDS[attempt])
+    raise last_error
 
-def _backup_db(src, dest):
-    src_conn = sqlite3.connect(f"file:{src}?mode=ro", uri=True)
-    dest_conn = sqlite3.connect(dest)
+
+def execute_with_busy_retry(executor):
+    last_error = None
+    for attempt in range(len(SQLITE_BUSY_BACKOFF_SECONDS) + 1):
+        try:
+            return executor()
+        except sqlite3.OperationalError as error:
+            last_error = error
+            if not _is_sqlite_busy_error(error) or attempt >= len(SQLITE_BUSY_BACKOFF_SECONDS):
+                raise
+            time.sleep(SQLITE_BUSY_BACKOFF_SECONDS[attempt])
+    raise last_error
+
+
+def validate_source_db_integrity():
+    conn = get_db_connection()
     try:
-        src_conn.backup(dest_conn)
+        result = execute_with_busy_retry(lambda: conn.execute("PRAGMA integrity_check;").fetchone())
+        status = result[0] if result else None
     finally:
-        dest_conn.close()
-        src_conn.close()
-    try:
-        os.chmod(dest, 0o600)
-    except Exception:
-        pass
+        conn.close()
+
+    if status != "ok":
+        raise RuntimeError(f"Source Messages database integrity check failed: {status}")
+    return True
 
 def _normalize_metadata(data):
     if not isinstance(data, dict):
@@ -72,7 +94,7 @@ def get_handle_map():
             if not db_file.endswith(".abcddb"): continue
             db_path = os.path.join(TMP_CONTACTS_DIR, db_file)
             try:
-                conn = sqlite3.connect(db_path)
+                conn = sqlite3.connect(_sqlite_ro_uri(db_path), uri=True)
                 cur = conn.cursor()
                 for r in cur.execute("SELECT r.ZFIRSTNAME, r.ZLASTNAME, r.ZORGANIZATION, p.ZFULLNUMBER FROM ZABCDPHONENUMBER p JOIN ZABCDRECORD r ON p.ZOWNER = r.Z_PK"):
                     name = " ".join(filter(None, [r[0], r[1]])) or r[2]
@@ -90,23 +112,14 @@ def resolve_name(handle, h_map=None):
     return h_map.get(normalize_handle(handle), handle)
 
 def get_db_connection():
-    target_db = TMP_DB
-    if not target_db:
-        target_db = _get_fallback_db_path()
-        if not os.path.exists(target_db):
-            if not os.path.exists(DEFAULT_DB_PATH):
-                raise RuntimeError(f"Messages database not found at {redact_path(DEFAULT_DB_PATH)}")
-            try:
-                _backup_db(DEFAULT_DB_PATH, target_db)
-            except Exception as e:
-                raise RuntimeError(f"Failed to create temp database copy: {redact_path(str(e))}")
-    
+    target_db = _source_db_path()
     if not os.path.exists(target_db):
         raise RuntimeError(f"Database not found at {redact_path(target_db)}")
-         
-    conn = sqlite3.connect(target_db)
-    conn.row_factory = sqlite3.Row
-    return conn
+
+    try:
+        return _connect_readonly(target_db)
+    except Exception as e:
+        raise RuntimeError(f"Failed to open database in read-only mode: {redact_path(str(e))}")
 
 def get_recent_chats(limit=100, groups_only=False, one_on_one_only=False, search_filter=None, h_map=None):
     conn = get_db_connection()

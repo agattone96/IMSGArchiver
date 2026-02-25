@@ -16,6 +16,7 @@ class MirrorService:
         self.enabled = False
 
     def enable_mirror(self) -> Dict[str, Any]:
+        db.validate_source_db_integrity()
         self.enabled = True
         return {"enabled": self.enabled, "mirror_db_path": self.mirror_db_path}
 
@@ -27,21 +28,36 @@ class MirrorService:
         if not self.enabled:
             raise RuntimeError("Mirror service is disabled")
 
+        monitor_event = self.monitor.poll_once() if self.monitor else None
+        should_ingest = monitor_event is None or monitor_event.kind in {"frames_appended", "checkpoint_truncated"}
+        truncation_detected = bool(monitor_event and monitor_event.kind == "checkpoint_truncated")
+
+        if not should_ingest:
+            return {
+                "synced": True,
+                "synced_count": 0,
+                "last_synced_timestamp": last_synced_timestamp,
+                "checkpoint_truncation_detected": truncation_detected,
+                "mirror_db_exists": os.path.exists(self.mirror_db_path),
+            }
+
         synced_count = 0
         conn = db.get_db_connection()
         try:
-            rows = conn.execute(
-                """
-                SELECT m.ROWID as row_id, c.guid as chat_guid, m.date, m.text, m.attributedBody,
-                       m.is_from_me, m.handle_id
-                FROM message m
-                JOIN chat_message_join cmj ON m.ROWID = cmj.message_id
-                JOIN chat c ON cmj.chat_id = c.ROWID
-                WHERE m.date > ?
-                ORDER BY m.date ASC, m.ROWID ASC
-                """,
-                (last_synced_timestamp,),
-            ).fetchall()
+            rows = db.execute_with_busy_retry(
+                lambda: conn.execute(
+                    """
+                    SELECT m.ROWID as row_id, c.guid as chat_guid, m.date, m.text, m.attributedBody,
+                           m.is_from_me, m.handle_id
+                    FROM message m
+                    JOIN chat_message_join cmj ON m.ROWID = cmj.message_id
+                    JOIN chat c ON cmj.chat_id = c.ROWID
+                    WHERE m.date > ?
+                    ORDER BY m.date ASC, m.ROWID ASC
+                    """,
+                    (last_synced_timestamp,),
+                ).fetchall()
+            )
 
             for row in rows:
                 decoded_text = decode_body(row["text"], row["attributedBody"]) or row["text"]
@@ -60,11 +76,6 @@ class MirrorService:
                 synced_count += 1
         finally:
             conn.close()
-
-        truncation_detected = False
-        if self.monitor:
-            event = self.monitor.poll_once()
-            truncation_detected = bool(event and event.kind == "checkpoint_truncated")
 
         return {
             "synced": True,
