@@ -15,6 +15,9 @@ class MirrorService:
         self.monitor = WalMonitor(wal_path) if wal_path else None
         self.enabled = False
 
+    def status(self) -> Dict[str, Any]:
+        return {"enabled": self.enabled, "mirror_db_path": self.mirror_db_path}
+
     def enable_mirror(self) -> Dict[str, Any]:
         db.validate_source_db_integrity()
         self.enabled = True

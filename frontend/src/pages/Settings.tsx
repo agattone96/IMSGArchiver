@@ -1,7 +1,53 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
+import { api } from '../api/client';
+import { ErrorState, LoadingState, SuccessState } from '../components/StateViews';
 
-export function Settings() {
+type SettingsProps = {
+    mirrorEnabled: boolean;
+    onMirrorEnabledChange: (enabled: boolean) => void;
+};
+
+export function Settings({ mirrorEnabled, onMirrorEnabledChange }: SettingsProps) {
     const [isCleaningUp, setIsCleaningUp] = useState(false);
+    const [mirrorLoading, setMirrorLoading] = useState(false);
+    const [mirrorMessage, setMirrorMessage] = useState<string | null>(null);
+    const [mirrorError, setMirrorError] = useState<string | null>(null);
+
+    useEffect(() => {
+        let cancelled = false;
+        const loadMirrorStatus = async () => {
+            setMirrorLoading(true);
+            setMirrorError(null);
+            try {
+                const status = await api.getMirrorStatus();
+                if (!cancelled && status) onMirrorEnabledChange(status.enabled);
+            } catch (err) {
+                if (!cancelled) setMirrorError(err instanceof Error ? err.message : 'Failed to load mirror status');
+            } finally {
+                if (!cancelled) setMirrorLoading(false);
+            }
+        };
+        loadMirrorStatus();
+        return () => {
+            cancelled = true;
+        };
+    }, [onMirrorEnabledChange]);
+
+    const toggleMirror = async () => {
+        setMirrorLoading(true);
+        setMirrorError(null);
+        setMirrorMessage(null);
+        try {
+            const next = mirrorEnabled ? await api.disableMirror() : await api.enableMirror();
+            const enabled = Boolean(next?.enabled);
+            onMirrorEnabledChange(enabled);
+            setMirrorMessage(enabled ? 'Success: Forensic Mirror Mode enabled.' : 'Success: Forensic Mirror Mode disabled.');
+        } catch (err) {
+            setMirrorError(err instanceof Error ? err.message : 'Unable to toggle mirror mode.');
+        } finally {
+            setMirrorLoading(false);
+        }
+    };
 
     const handleCompleteCleanup = async () => {
         const confirmed = window.confirm(
@@ -55,6 +101,28 @@ export function Settings() {
                         </div>
                         <button className="text-pink hover:text-pink2 text-sm font-medium">Change</button>
                     </div>
+
+                    <div className="flex items-center justify-between py-4 border-b border-white/5 gap-6">
+                        <div>
+                            <div className="font-medium text-white">Enable Forensic Mirror Mode</div>
+                            <div className="text-sm text-muted">
+                                Capture message revisions for Archived Messages, Edit History, and Deleted Messages views.
+                            </div>
+                        </div>
+                        <button
+                            onClick={toggleMirror}
+                            disabled={mirrorLoading}
+                            className={`min-w-28 rounded-lg px-3 py-2 text-sm font-semibold transition-colors ${
+                                mirrorEnabled ? 'bg-emerald-500/20 text-emerald-200 hover:bg-emerald-500/30' : 'bg-white/10 text-white hover:bg-white/20'
+                            } disabled:opacity-50 disabled:cursor-not-allowed`}
+                        >
+                            {mirrorLoading ? 'Saving...' : mirrorEnabled ? 'Enabled' : 'Disabled'}
+                        </button>
+                    </div>
+
+                    {mirrorLoading && <LoadingState message="Loading: Checking mirror status…" className="text-sm" />}
+                    {mirrorError && <ErrorState message={`Error: ${mirrorError}`} className="text-sm" />}
+                    {mirrorMessage && <SuccessState message={mirrorMessage} className="text-sm" />}
 
                     <div className="pt-4">
                         <button
