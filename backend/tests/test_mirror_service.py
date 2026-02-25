@@ -1,9 +1,10 @@
 import os
 import tempfile
 import unittest
-from unittest.mock import patch
+from unittest.mock import Mock, patch
 
 from backend.src.mirror_service import MirrorService
+from backend.src.wal_monitor import WalEvent
 
 
 class _FakeCursor:
@@ -37,7 +38,9 @@ class MirrorServiceTestCase(unittest.TestCase):
             os.remove(self.db_path)
 
     def test_enable_disable_and_timeline(self):
-        self.assertTrue(self.service.enable_mirror()["enabled"])
+        with patch("backend.src.mirror_service.db.validate_source_db_integrity") as integrity_check:
+            self.assertTrue(self.service.enable_mirror()["enabled"])
+            integrity_check.assert_called_once_with()
         self.service.ingest_message_revision(
             guid="g-1",
             revision_timestamp=1,
@@ -51,7 +54,8 @@ class MirrorServiceTestCase(unittest.TestCase):
         self.assertFalse(self.service.disable_mirror()["enabled"])
 
     def test_trigger_fallback_sync_ingests_rows(self):
-        self.service.enable_mirror()
+        with patch("backend.src.mirror_service.db.validate_source_db_integrity"):
+            self.service.enable_mirror()
         rows = [
             {
                 "row_id": 100,
@@ -63,12 +67,55 @@ class MirrorServiceTestCase(unittest.TestCase):
                 "handle_id": 10,
             }
         ]
-        with patch("backend.src.mirror_service.db.get_db_connection", return_value=_FakeConn(rows)):
+        with patch("backend.src.mirror_service.db.get_db_connection", return_value=_FakeConn(rows)), patch(
+            "backend.src.mirror_service.db.execute_with_busy_retry", side_effect=lambda callback: callback()
+        ):
             result = self.service.trigger_fallback_sync(last_synced_timestamp=0)
 
         self.assertTrue(result["synced"])
         self.assertEqual(result["synced_count"], 1)
         self.assertEqual(len(self.service.get_message_timeline("chat-1:100")), 1)
+
+    def test_trigger_fallback_sync_uses_checkpoint_fallback_path(self):
+        with patch("backend.src.mirror_service.db.validate_source_db_integrity"):
+            self.service.enable_mirror()
+        rows = [
+            {
+                "row_id": 101,
+                "chat_guid": "chat-2",
+                "date": 456,
+                "text": "checkpoint",
+                "attributedBody": b"",
+                "is_from_me": 0,
+                "handle_id": 20,
+            }
+        ]
+        self.service.monitor = Mock()
+        self.service.monitor.poll_once.return_value = WalEvent(
+            kind="checkpoint_truncated", wal_path="/tmp/chat.db-wal", size=0, previous_size=10
+        )
+
+        with patch("backend.src.mirror_service.db.get_db_connection", return_value=_FakeConn(rows)), patch(
+            "backend.src.mirror_service.db.execute_with_busy_retry", side_effect=lambda callback: callback()
+        ):
+            result = self.service.trigger_fallback_sync(last_synced_timestamp=200)
+
+        self.assertEqual(result["synced_count"], 1)
+        self.assertTrue(result["checkpoint_truncation_detected"])
+
+    def test_trigger_fallback_sync_skips_when_no_wal_change(self):
+        with patch("backend.src.mirror_service.db.validate_source_db_integrity"):
+            self.service.enable_mirror()
+        self.service.monitor = Mock()
+        self.service.monitor.poll_once.return_value = WalEvent(
+            kind="noop", wal_path="/tmp/chat.db-wal", size=100, previous_size=100
+        )
+
+        with patch("backend.src.mirror_service.db.get_db_connection") as get_conn:
+            result = self.service.trigger_fallback_sync(last_synced_timestamp=200)
+
+        self.assertEqual(result["synced_count"], 0)
+        get_conn.assert_not_called()
 
     def test_trigger_fallback_sync_requires_enabled_service(self):
         with self.assertRaises(RuntimeError):
