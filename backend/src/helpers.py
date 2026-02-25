@@ -72,6 +72,12 @@ def decode_body(text, attributed):
 
 def get_file_hash(path):
     try:
-        stat = os.stat(path)
-        return hashlib.md5(f"{path}:{stat.st_mtime}:{stat.st_size}".encode()).hexdigest()
+        h = hashlib.sha256()
+        with open(path, "rb") as f:
+            while True:
+                chunk = f.read(1024 * 1024)
+                if not chunk:
+                    break
+                h.update(chunk)
+        return h.hexdigest()
     except: return None

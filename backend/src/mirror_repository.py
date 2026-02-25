@@ -32,15 +32,11 @@ CREATE TABLE IF NOT EXISTS message_revisions (
 ) STRICT;
 
 CREATE TABLE IF NOT EXISTS attachment_mirror (
-  id INTEGER PRIMARY KEY AUTOINCREMENT,
-  guid TEXT NOT NULL,
-  message_guid TEXT NOT NULL,
-  transfer_name TEXT,
-  mime_type TEXT,
-  file_size INTEGER,
-  checksum TEXT,
-  created_at TEXT NOT NULL,
-  UNIQUE(guid, message_guid)
+  guid TEXT PRIMARY KEY,
+  file_hash TEXT NOT NULL,
+  original_path TEXT,
+  archive_path TEXT NOT NULL,
+  lifecycle_state TEXT NOT NULL
 ) STRICT;
 
 CREATE TABLE IF NOT EXISTS audit_log (
@@ -68,7 +64,7 @@ END;
 
 CREATE INDEX IF NOT EXISTS idx_message_revisions_guid_ts ON message_revisions(guid, revision_timestamp);
 CREATE INDEX IF NOT EXISTS idx_message_revisions_fingerprint ON message_revisions(fingerprint);
-CREATE INDEX IF NOT EXISTS idx_attachment_mirror_message_guid ON attachment_mirror(message_guid);
+CREATE INDEX IF NOT EXISTS idx_attachment_mirror_file_hash ON attachment_mirror(file_hash);
 CREATE INDEX IF NOT EXISTS idx_audit_log_guid_created_at ON audit_log(guid, created_at);
 """
 
@@ -87,9 +83,48 @@ class MirrorRepository:
         conn = self._get_connection()
         try:
             conn.executescript(SCHEMA_SQL)
+            self._migrate_attachment_mirror(conn)
             conn.commit()
         finally:
             conn.close()
+
+    def _migrate_attachment_mirror(self, conn: sqlite3.Connection) -> None:
+        columns = {
+            row["name"]
+            for row in conn.execute("PRAGMA table_info(attachment_mirror)").fetchall()
+        }
+        expected = {"guid", "file_hash", "original_path", "archive_path", "lifecycle_state"}
+        if columns == expected:
+            return
+
+        conn.execute("DROP TABLE IF EXISTS attachment_mirror_legacy")
+        conn.execute("ALTER TABLE attachment_mirror RENAME TO attachment_mirror_legacy")
+        conn.execute(
+            """
+            CREATE TABLE attachment_mirror (
+              guid TEXT PRIMARY KEY,
+              file_hash TEXT NOT NULL,
+              original_path TEXT,
+              archive_path TEXT NOT NULL,
+              lifecycle_state TEXT NOT NULL
+            ) STRICT
+            """
+        )
+        if columns:
+            conn.execute(
+                """
+                INSERT OR IGNORE INTO attachment_mirror (guid, file_hash, original_path, archive_path, lifecycle_state)
+                SELECT guid,
+                       COALESCE(checksum, guid),
+                       NULL,
+                       transfer_name,
+                       'active'
+                FROM attachment_mirror_legacy
+                WHERE guid IS NOT NULL AND transfer_name IS NOT NULL
+                """
+            )
+        conn.execute("DROP TABLE IF EXISTS attachment_mirror_legacy")
+        conn.execute("CREATE INDEX IF NOT EXISTS idx_attachment_mirror_file_hash ON attachment_mirror(file_hash)")
 
     @staticmethod
     def _now() -> str:
@@ -207,5 +242,149 @@ class MirrorRepository:
                 (guid,),
             ).fetchall()
             return [dict(row) for row in rows]
+        finally:
+            conn.close()
+
+    def find_attachment_by_hash(self, file_hash: str) -> Optional[Dict[str, Any]]:
+        conn = self._get_connection()
+        try:
+            row = conn.execute(
+                """
+                SELECT guid, file_hash, original_path, archive_path, lifecycle_state
+                FROM attachment_mirror
+                WHERE file_hash = ? AND lifecycle_state = 'active'
+                ORDER BY guid ASC
+                LIMIT 1
+                """,
+                (file_hash,),
+            ).fetchone()
+            return dict(row) if row else None
+        finally:
+            conn.close()
+
+    def upsert_attachment(
+        self,
+        guid: str,
+        file_hash: str,
+        original_path: Optional[str],
+        archive_path: str,
+        lifecycle_state: str = "active",
+    ) -> Dict[str, Any]:
+        event_key = f"attachment:{guid}:{lifecycle_state}:{file_hash}"
+        now = self._now()
+        conn = self._get_connection()
+        try:
+            conn.execute("BEGIN IMMEDIATE")
+            existing = conn.execute(
+                "SELECT lifecycle_state, file_hash, archive_path, original_path FROM attachment_mirror WHERE guid = ?",
+                (guid,),
+            ).fetchone()
+
+            conn.execute(
+                """
+                INSERT INTO attachment_mirror (guid, file_hash, original_path, archive_path, lifecycle_state)
+                VALUES (?, ?, ?, ?, ?)
+                ON CONFLICT(guid) DO UPDATE SET
+                    file_hash = excluded.file_hash,
+                    original_path = excluded.original_path,
+                    archive_path = excluded.archive_path,
+                    lifecycle_state = excluded.lifecycle_state
+                """,
+                (guid, file_hash, original_path, archive_path, lifecycle_state),
+            )
+
+            if not existing or existing["lifecycle_state"] != lifecycle_state:
+                conn.execute(
+                    """
+                    INSERT INTO audit_log (event_key, event_type, guid, payload_json, created_at)
+                    VALUES (?, ?, ?, ?, ?)
+                    ON CONFLICT(event_key) DO NOTHING
+                    """,
+                    (
+                        event_key,
+                        "ATTACHMENT_STATE_CHANGE",
+                        guid,
+                        json.dumps(
+                            {
+                                "from": existing["lifecycle_state"] if existing else None,
+                                "to": lifecycle_state,
+                                "file_hash": file_hash,
+                                "archive_path": archive_path,
+                                "original_path": original_path,
+                            },
+                            sort_keys=True,
+                        ),
+                        now,
+                    ),
+                )
+            conn.commit()
+            return {
+                "guid": guid,
+                "file_hash": file_hash,
+                "archive_path": archive_path,
+                "lifecycle_state": lifecycle_state,
+                "deduped": bool(existing and existing["file_hash"] == file_hash),
+            }
+        except Exception:
+            conn.rollback()
+            raise
+        finally:
+            conn.close()
+
+    def mark_attachment_missing_source(self, guid: str) -> bool:
+        return self._set_attachment_state(guid, "missing_source")
+
+    def mark_attachment_orphaned(self, guid: str) -> bool:
+        return self._set_attachment_state(guid, "orphaned")
+
+    def _set_attachment_state(self, guid: str, lifecycle_state: str) -> bool:
+        now = self._now()
+        event_key = f"attachment:{guid}:{lifecycle_state}"
+        conn = self._get_connection()
+        try:
+            conn.execute("BEGIN IMMEDIATE")
+            existing = conn.execute(
+                "SELECT lifecycle_state, file_hash, original_path, archive_path FROM attachment_mirror WHERE guid = ?",
+                (guid,),
+            ).fetchone()
+            if not existing:
+                conn.rollback()
+                return False
+            if existing["lifecycle_state"] == lifecycle_state:
+                conn.commit()
+                return False
+
+            conn.execute(
+                "UPDATE attachment_mirror SET lifecycle_state = ? WHERE guid = ?",
+                (lifecycle_state, guid),
+            )
+            conn.execute(
+                """
+                INSERT INTO audit_log (event_key, event_type, guid, payload_json, created_at)
+                VALUES (?, ?, ?, ?, ?)
+                ON CONFLICT(event_key) DO NOTHING
+                """,
+                (
+                    event_key,
+                    "ATTACHMENT_STATE_CHANGE",
+                    guid,
+                    json.dumps(
+                        {
+                            "from": existing["lifecycle_state"],
+                            "to": lifecycle_state,
+                            "file_hash": existing["file_hash"],
+                            "archive_path": existing["archive_path"],
+                            "original_path": existing["original_path"],
+                        },
+                        sort_keys=True,
+                    ),
+                    now,
+                ),
+            )
+            conn.commit()
+            return True
+        except Exception:
+            conn.rollback()
+            raise
         finally:
             conn.close()
