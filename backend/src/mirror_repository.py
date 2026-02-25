@@ -339,7 +339,7 @@ class MirrorRepository:
 
     def _set_attachment_state(self, guid: str, lifecycle_state: str) -> bool:
         now = self._now()
-        event_key = f"attachment:{guid}:{lifecycle_state}"
+        event_key = f"attachment:{guid}:{lifecycle_state}:{now}"
         conn = self._get_connection()
         try:
             conn.execute("BEGIN IMMEDIATE")
