@@ -111,7 +111,7 @@ def process_attachment_task(row_id, raw_path, mime, ts_iso, contact_dir, metadat
         if file_hash:
             hash_index[file_hash] = rel_path
         return row_id, rel_path, extra_text
-    except: return row_id, "", extra_text
+    except OSError: return row_id, "", extra_text
 
 def _unique_output_path(out_dir, base_name, ext, force_timestamp=False):
     ext = ext.lstrip(".")
