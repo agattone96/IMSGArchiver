@@ -13,6 +13,12 @@ from backend.src import engine, db
 from backend.src.config import OUT_DIR
 from backend.src.helpers import decode_body, mac_timestamp_to_iso, redact_path
 from backend.src.jobs import job_store
+from backend.src.mirror_service import MirrorService
+
+
+MIRROR_DB_PATH = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "imessage_mirror.sqlite")
+CHAT_DB_WAL_PATH = db.TMP_DB + "-wal" if db.TMP_DB else os.path.expanduser("~/Library/Messages/chat.db-wal")
+mirror_service = MirrorService(mirror_db_path=MIRROR_DB_PATH, wal_path=CHAT_DB_WAL_PATH)
 
 def _safe_detail(err: Exception) -> str:
     detail = redact_path(str(err))
@@ -85,6 +91,10 @@ class ArchiveJobStatus(BaseModel):
     updated_at: str
     started_at: Optional[str] = None
     completed_at: Optional[str] = None
+
+
+class FallbackSyncRequest(BaseModel):
+    last_synced_timestamp: int
 
 
 # --- API Endpoints ---
@@ -198,6 +208,40 @@ def cancel_archive_job(job_id: str):
     if not job:
         raise HTTPException(status_code=404, detail="Job not found")
     return job
+
+
+@app.post("/mirror/enable")
+def enable_mirror():
+    try:
+        return mirror_service.enable_mirror()
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=_safe_detail(e))
+
+
+@app.post("/mirror/disable")
+def disable_mirror():
+    try:
+        return mirror_service.disable_mirror()
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=_safe_detail(e))
+
+
+@app.post("/mirror/fallback-sync")
+def trigger_fallback_sync(req: FallbackSyncRequest):
+    try:
+        return mirror_service.trigger_fallback_sync(req.last_synced_timestamp)
+    except RuntimeError as e:
+        raise HTTPException(status_code=400, detail=_safe_detail(e))
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=_safe_detail(e))
+
+
+@app.get("/mirror/messages/{guid}/timeline")
+def get_message_timeline(guid: str):
+    try:
+        return mirror_service.get_message_timeline(guid)
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=_safe_detail(e))
 
 if __name__ == "__main__":
     uvicorn.run(app, host="127.0.0.1", port=8000)
