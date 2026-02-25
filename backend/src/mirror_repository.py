@@ -351,7 +351,6 @@ class MirrorRepository:
                 conn.rollback()
                 return False
             if existing["lifecycle_state"] == lifecycle_state:
-                conn.commit()
                 return False
 
             conn.execute(
