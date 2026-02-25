@@ -35,6 +35,16 @@ class WalMonitor:
             return WalEvent("checkpoint_truncated", self.wal_path, size, prev)
         return None
 
+    def read_new_bytes(self, previous_size: int, current_size: int) -> bytes:
+        """Read newly appended WAL bytes between previous_size and current_size."""
+        if current_size <= previous_size:
+            return b""
+        if not os.path.exists(self.wal_path):
+            return b""
+        with open(self.wal_path, "rb") as wal_file:
+            wal_file.seek(previous_size)
+            return wal_file.read(current_size - previous_size)
+
     def watch(self) -> Generator[WalEvent, None, None]:
         while True:
             event = self.poll_once()
