@@ -210,6 +210,14 @@ def cancel_archive_job(job_id: str):
     return job
 
 
+@app.get("/mirror/status")
+def mirror_status():
+    try:
+        return mirror_service.status()
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=_safe_detail(e))
+
+
 @app.post("/mirror/enable")
 def enable_mirror():
     try:

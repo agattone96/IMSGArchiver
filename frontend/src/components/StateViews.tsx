@@ -26,3 +26,21 @@ type EmptyStateProps = {
 export function EmptyState({ message, className }: EmptyStateProps) {
     return <div className={className ?? 'text-muted'}>{message}</div>;
 }
+
+type SuccessStateProps = {
+    message: ReactNode;
+    className?: string;
+};
+
+export function SuccessState({ message, className }: SuccessStateProps) {
+    return <div className={className ?? 'text-emerald-300'}>{message}</div>;
+}
+
+type RestrictedStateProps = {
+    message: ReactNode;
+    className?: string;
+};
+
+export function RestrictedState({ message, className }: RestrictedStateProps) {
+    return <div className={className ?? 'text-amber-300'}>{message}</div>;
+}

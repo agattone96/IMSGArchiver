@@ -1,4 +1,4 @@
-import { HashRouter, Routes, Route } from 'react-router-dom';
+import { HashRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { useEffect, useRef, useState } from 'react';
 import { Layout } from './Layout';
 import { Onboarding } from './pages/Onboarding';
@@ -9,17 +9,20 @@ import { Messages } from './pages/Messages';
 import { Analytics } from './pages/Analytics';
 import { Media } from './pages/Media';
 import { Settings } from './pages/Settings';
+import { ArchivedMessages } from './pages/ArchivedMessages';
+import { EditHistory } from './pages/EditHistory';
+import { DeletedMessages } from './pages/DeletedMessages';
 
 const HAS_ONBOARDED_KEY = 'archiver_has_onboarded';
 
 function App() {
     const [checking, setChecking] = useState(true);
     const [needsOnboarding, setNeedsOnboarding] = useState(false);
+    const [mirrorEnabled, setMirrorEnabled] = useState(false);
     const needsOnboardingRef = useRef(false);
     const openQueueRef = useRef<Array<{ argv: string[]; cwd: string; timestamp: number }>>([]);
 
     const handleOpenRequest = (payload: { argv: string[]; cwd: string; timestamp: number }) => {
-        // Minimal behavior: route to dashboard and log payload
         console.log('Open request:', payload);
         window.location.hash = '#/';
     };
@@ -81,11 +84,26 @@ function App() {
             }
             setChecking(false);
         }).catch(() => {
-            // If backend fails, default to onboarding
             console.error('Backend unreachable');
             setNeedsOnboarding(true);
             setChecking(false);
         });
+    }, []);
+
+    useEffect(() => {
+        let cancelled = false;
+        const loadMirrorStatus = async () => {
+            try {
+                const status = await api.getMirrorStatus();
+                if (!cancelled && status) setMirrorEnabled(status.enabled);
+            } catch {
+                if (!cancelled) setMirrorEnabled(false);
+            }
+        };
+        loadMirrorStatus();
+        return () => {
+            cancelled = true;
+        };
     }, []);
 
     if (checking) {
@@ -103,12 +121,24 @@ function App() {
     return (
         <HashRouter>
             <Routes>
-                <Route path="/" element={<Layout />}>
+                <Route path="/" element={<Layout mirrorEnabled={mirrorEnabled} />}>
                     <Route index element={<Dashboard />} />
                     <Route path="messages" element={<Messages />} />
                     <Route path="analytics" element={<Analytics />} />
                     <Route path="media" element={<Media />} />
-                    <Route path="settings" element={<Settings />} />
+                    <Route path="settings" element={<Settings mirrorEnabled={mirrorEnabled} onMirrorEnabledChange={setMirrorEnabled} />} />
+                    <Route
+                        path="archived-messages"
+                        element={mirrorEnabled ? <ArchivedMessages mirrorEnabled={mirrorEnabled} /> : <Navigate to="/settings" replace />}
+                    />
+                    <Route
+                        path="edit-history"
+                        element={mirrorEnabled ? <EditHistory mirrorEnabled={mirrorEnabled} /> : <Navigate to="/settings" replace />}
+                    />
+                    <Route
+                        path="deleted-messages"
+                        element={mirrorEnabled ? <DeletedMessages mirrorEnabled={mirrorEnabled} /> : <Navigate to="/settings" replace />}
+                    />
                 </Route>
             </Routes>
         </HashRouter>

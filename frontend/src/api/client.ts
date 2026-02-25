@@ -64,6 +64,22 @@ export interface GlobalStats {
     storage_path: string;
 }
 
+export interface MirrorStatus {
+    enabled: boolean;
+    mirror_db_path: string;
+}
+
+export interface TimelineRevision {
+    id: number;
+    guid: string;
+    source_message_row_id: number | null;
+    revision_timestamp: number;
+    text: string | null;
+    metadata_json: string | null;
+    fingerprint: string;
+    created_at: string;
+}
+
 export type ArchiveFormat = 'csv' | 'json' | 'md';
 
 export type ArchiveJobStatusType = 'queued' | 'running' | 'completed' | 'failed' | 'canceled';
@@ -129,5 +145,17 @@ export const api = {
     },
     cancelArchiveJob: async (jobId: string) => {
         return await fetchJson<ArchiveJob>(`/archive/jobs/${encodeURIComponent(jobId)}/cancel`, { method: 'POST' });
+    },
+    getMirrorStatus: async () => {
+        return await fetchJson<MirrorStatus>('/mirror/status');
+    },
+    enableMirror: async () => {
+        return await fetchJson<MirrorStatus>('/mirror/enable', { method: 'POST' });
+    },
+    disableMirror: async () => {
+        return await fetchJson<MirrorStatus>('/mirror/disable', { method: 'POST' });
+    },
+    getMessageTimeline: async (guid: string) => {
+        return await fetchJson<TimelineRevision[]>(`/mirror/messages/${encodeURIComponent(guid)}/timeline`);
     }
 };
