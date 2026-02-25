@@ -111,7 +111,7 @@ export function MessageTimeline({ heading, description, restrictedReason, mirror
                         {revisions.map(({ current, previous }) => (
                             <article key={current.id} className="rounded-xl border border-stroke bg-bg1/70 p-4 space-y-2">
                                 <div className="text-xs text-muted">
-                                    Revision #{current.id} · timestamp {current.revision_timestamp} · source row {current.source_message_row_id ?? 'n/a'}
+                                    Revision #{current.id} · timestamp {new Date(current.revision_timestamp * 1000).toLocaleString()} · source row {current.source_message_row_id ?? 'n/a'}
                                 </div>
                                 {!previous && (
                                     <p className="text-sm text-white whitespace-pre-wrap break-words">{current.text || '[No text]'} </p>
