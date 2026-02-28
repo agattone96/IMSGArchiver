@@ -136,8 +136,9 @@ function createMoveToApplicationsWindow() {
         title: 'Move to Applications',
         icon: iconPath,
         webPreferences: {
-            nodeIntegration: true,
-            contextIsolation: false
+            nodeIntegration: false,
+            contextIsolation: true,
+            preload: path.join(__dirname, '../preload/index.js')
         }
     });
 
@@ -316,8 +317,9 @@ function createSplashWindow() {
         title: 'Archiver',
         icon: iconPath,
         webPreferences: {
-            nodeIntegration: true,
-            contextIsolation: false
+            nodeIntegration: false,
+            contextIsolation: true,
+            preload: path.join(__dirname, '../preload/index.js')
         }
     });
 
