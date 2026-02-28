@@ -411,6 +411,9 @@ config.json
 # Application specific
 # --------------------
 # Archiver user data if stored locally during dev
+backend/*.sqlite
+backend/*.sqlite-wal
+backend/*.sqlite-shm
 Cache/
 Code Cache/
 Cookies*
