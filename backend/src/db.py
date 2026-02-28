@@ -125,15 +125,7 @@ def get_recent_chats(limit=100, groups_only=False, one_on_one_only=False, search
     conn = get_db_connection()
     cur = conn.cursor()
     
-    filter_sql = ""
-    params = []
-    if groups_only: filter_sql += " AND c.style = 43"
-    if one_on_one_only: filter_sql += " AND c.style = 45"
-    if search_filter:
-        filter_sql += " AND (h_filter.id LIKE ? OR c.display_name LIKE ?)"
-        params.extend([f"%{search_filter}%", f"%{search_filter}%"])
-    
-    sql = f"""
+    sql = """
     SELECT 
         c.guid as chat_guid,
         MAX(m.date) as last_date,
@@ -150,13 +142,24 @@ def get_recent_chats(limit=100, groups_only=False, one_on_one_only=False, search
     LEFT JOIN handle h_filter ON chj_filter.handle_id = h_filter.ROWID
     LEFT JOIN message_attachment_join maj ON m.ROWID = maj.message_id
     LEFT JOIN attachment a ON maj.attachment_id = a.ROWID
-    WHERE 1=1 {{filter_sql}}
+    WHERE 1=1
+      AND (? = 1 OR c.style = 43)
+      AND (? = 1 OR c.style = 45)
+      AND (? = 1 OR (h_filter.id LIKE ? OR c.display_name LIKE ?))
     GROUP BY c.guid
     ORDER BY last_date DESC
     LIMIT ?
     """
-    params.append(limit)
-    rows = [dict(r) for r in cur.execute(sql.format(filter_sql=filter_sql), params)]
+    params = [
+        0 if groups_only else 1,
+        0 if one_on_one_only else 1,
+        0 if search_filter else 1,
+        f"%{search_filter}%" if search_filter else "",
+        f"%{search_filter}%" if search_filter else "",
+        limit
+    ]
+
+    rows = [dict(r) for r in cur.execute(sql, params)]
     conn.close()
 
     if h_map is None: h_map = get_handle_map()
