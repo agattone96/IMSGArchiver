@@ -71,7 +71,7 @@
       </div>
     </div>
     <script>
-      const { ipcRenderer } = require('electron');
+      const ipcRenderer = window.electron;
       document.getElementById('move').addEventListener('click', () => {
         ipcRenderer.send('move-to-applications-choice', 'move');
       });

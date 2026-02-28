@@ -3,13 +3,13 @@ import { contextBridge, ipcRenderer } from 'electron';
 contextBridge.exposeInMainWorld('electron', {
     send: (channel: string, data: any) => {
         // Whitelist channels
-        let validChannels = ['toMain', 'complete-cleanup', 'renderer-ready', 'splash-quit'];
+        let validChannels = ['toMain', 'complete-cleanup', 'renderer-ready', 'splash-quit', 'move-to-applications-choice'];
         if (validChannels.includes(channel)) {
             ipcRenderer.send(channel, data);
         }
     },
     on: (channel: string, func: (...args: any[]) => void) => {
-        let validChannels = ['fromMain', 'splash-progress', 'cleanup-complete', 'app-open', 'app:open-request'];
+        let validChannels = ['fromMain', 'splash-progress', 'cleanup-complete', 'app-open', 'app:open-request', 'move-to-applications-failed'];
         if (validChannels.includes(channel)) {
             // Deliberately strip event as it includes `sender` 
             ipcRenderer.on(channel, (event, ...args) => func(...args));

@@ -198,7 +198,7 @@
     </div>
 
     <script>
-        const { ipcRenderer } = require('electron');
+        const ipcRenderer = window.electron;
 
         const progressFill = document.querySelector('.progress-fill');
         const stages = Array.from(document.querySelectorAll('.stage'));
@@ -220,7 +220,7 @@
             });
         }
 
-        ipcRenderer.on('splash-progress', (event, payload) => {
+        ipcRenderer.on('splash-progress', (payload) => {
             if (payload?.status === 'error') {
                 const detail = payload.detail || '';
                 const isPermissionHint =
