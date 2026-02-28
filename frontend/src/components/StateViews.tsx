@@ -1,4 +1,6 @@
 import type { ReactNode } from 'react';
+import { Loader2 } from 'lucide-react';
+import { cn } from '../lib/utils';
 
 type LoadingStateProps = {
     message: string;
@@ -6,7 +8,16 @@ type LoadingStateProps = {
 };
 
 export function LoadingState({ message, className }: LoadingStateProps) {
-    return <div className={className ?? 'text-muted'}>{message}</div>;
+    return (
+        <div
+            className={cn('text-muted flex items-center gap-2', className)}
+            role="status"
+            aria-live="polite"
+        >
+            <Loader2 className="w-4 h-4 animate-spin" aria-hidden="true" />
+            <span>{message}</span>
+        </div>
+    );
 }
 
 type ErrorStateProps = {

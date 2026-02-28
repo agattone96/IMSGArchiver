@@ -1,0 +1,3 @@
+## 2024-05-24 - Standardizing Loading States with ARIA Live Regions
+**Learning:** React state-driven loading text components (like `LoadingState`) without proper ARIA live regions fail to announce loading progress to screen readers when they replace content dynamically. Additionally, relying solely on text for visual loading states lacks polish and can be easily missed.
+**Action:** Always wrap loading states in `role="status"` with `aria-live="polite"` so screen readers are notified of the state change without interrupting the user. Include a standard loading spinner (e.g., `<Loader2 className="animate-spin" aria-hidden="true" />`) for immediate visual feedback, keeping `aria-hidden="true"` on the icon itself so it doesn't clutter the screen reader readout.
