@@ -21,7 +21,7 @@ def verify_binary(path, expected_hash):
         with open(path, "rb") as f:
             h = hashlib.sha256(f.read()).hexdigest()
         return h == expected_hash
-    except: return False
+    except Exception: return False
 
 def check_db_access(db_path=None):
     if not db_path:
@@ -91,7 +91,7 @@ def process_attachment_task(row_id, raw_path, mime, ts_iso, contact_dir, metadat
                     extra_text = f"\n[OCR: {res}]"
                     os.makedirs(ocr_dir, exist_ok=True)
                     with open(os.path.join(ocr_dir, f"{new_name}.txt"), "w") as f: f.write(res)
-            except: pass
+            except Exception: pass
         # Transcribe
         verified_trans = verify_binary(TRANSCRIBE_BIN, TRANSCRIBE_HASH)
         if subfolder == "Audio" and verified_trans:
@@ -101,7 +101,7 @@ def process_attachment_task(row_id, raw_path, mime, ts_iso, contact_dir, metadat
                     extra_text = f"\n[Transcription: {res}]"
                     os.makedirs(trans_dir, exist_ok=True)
                     with open(os.path.join(trans_dir, f"{new_name}.txt"), "w") as f: f.write(res)
-            except: pass
+            except Exception: pass
         
         if file_hash and extra_text: metadata["cache"][file_hash] = extra_text
     
