@@ -23,7 +23,7 @@ def get_global_stats():
         row = cur.fetchone()
         stats["top_contact_handle"] = row[1] if row else "N/A"
         stats["top_contact_count"] = row[0] if row else 0
-    except:
+    except Exception:
         stats = {"total_messages": 0, "total_chats": 0, "last_active": "N/A", "top_contact_handle": "N/A"}
     finally:
         conn.close()
@@ -32,7 +32,7 @@ def get_global_stats():
 def get_chat_activity_trend(chat_guid, limit_days=30):
     try:
         conn = get_db_connection()
-    except: return []
+    except Exception: return []
     
     cur = conn.cursor()
     sql = """

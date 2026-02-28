@@ -25,7 +25,7 @@ def mac_timestamp_to_iso(mac_ts):
     if not mac_ts: return ""
     ts = mac_ts / 1_000_000_000 + 978307200
     try: return datetime.datetime.fromtimestamp(ts).strftime("%Y-%m-%d %H:%M:%S")
-    except: return ""
+    except Exception: return ""
 
 def normalize_handle(handle):
     if not handle: return ""
@@ -64,7 +64,7 @@ def decode_body(text, attributed):
         match = re.search(r"[\x20-\x7E\s]{4,}", decoded)
         if match:
             return match.group(0).strip()
-    except:
+    except Exception:
         pass
         
     # Final fallback: Return a hex snippet to maintain auditability without crashing
@@ -80,4 +80,4 @@ def get_file_hash(path):
                     break
                 h.update(chunk)
         return h.hexdigest()
-    except: return None
+    except Exception: return None
