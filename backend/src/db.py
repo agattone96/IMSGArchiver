@@ -87,7 +87,13 @@ def save_metadata(data):
         os.replace(tmp, METADATA_FILE)
     except IOError: pass
 
+_HANDLE_MAP_CACHE = None
+
 def get_handle_map():
+    global _HANDLE_MAP_CACHE
+    if _HANDLE_MAP_CACHE is not None:
+        return _HANDLE_MAP_CACHE
+
     h_map = {}
     if TMP_CONTACTS_DIR and os.path.exists(TMP_CONTACTS_DIR):
         for db_file in os.listdir(TMP_CONTACTS_DIR):
@@ -104,6 +110,7 @@ def get_handle_map():
                     if c_name and r[3]: h_map[normalize_handle(r[3])] = c_name
                 conn.close()
             except sqlite3.Error: continue
+    _HANDLE_MAP_CACHE = h_map
     return h_map
 
 def resolve_name(handle, h_map=None):
